@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Integration;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Schema;
 
 class IntegrationCredentialService
 {
@@ -192,6 +193,10 @@ class IntegrationCredentialService
 
     private function active(string $provider): ?Integration
     {
+        if (! Schema::hasTable('integrations')) {
+            return null;
+        }
+
         return Integration::query()
             ->where('provider', $provider)
             ->where('is_active', true)
