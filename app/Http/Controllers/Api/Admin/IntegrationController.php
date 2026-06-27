@@ -7,6 +7,7 @@ use App\Models\Integration;
 use App\Services\SmtpMailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class IntegrationController extends BaseApiController
 {
@@ -21,15 +22,7 @@ class IntegrationController extends BaseApiController
 
     public function index(): JsonResponse
     {
-        $integrations = Integration::orderBy('name')->get()->map(function (Integration $integration): array {
-            $data = $integration->toArray();
-            $data['credentials'] = $this->maskCredentials(
-                $integration->provider,
-                (array) $integration->credentials,
-            );
-
-            return $data;
-        });
+        $integrations = Integration::orderBy('name')->get()->map(fn (Integration $integration): array => $this->formatIntegration($integration));
 
         return $this->success($integrations);
     }
@@ -45,7 +38,7 @@ class IntegrationController extends BaseApiController
 
         $integration = Integration::create($data);
 
-        return $this->success($integration, 'Integration created.', 201);
+        return $this->success($this->formatIntegration($integration), 'Integration created.', 201);
     }
 
     public function update(Request $request, Integration $integration): JsonResponse
@@ -66,11 +59,7 @@ class IntegrationController extends BaseApiController
 
         $integration->update($data);
 
-        $fresh = $integration->fresh();
-        $response = $fresh->toArray();
-        $response['credentials'] = $this->maskCredentials($fresh->provider, (array) $fresh->credentials);
-
-        return $this->success($response, 'Integration updated.');
+        return $this->success($this->formatIntegration($integration->fresh()), 'Integration updated.');
     }
 
     public function destroy(Integration $integration): JsonResponse
@@ -237,5 +226,24 @@ class IntegrationController extends BaseApiController
         }
 
         return $masked;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatIntegration(Integration $integration): array
+    {
+        $data = $integration->getAttributes();
+        unset($data['credentials']);
+
+        try {
+            $credentials = (array) $integration->credentials;
+        } catch (Throwable) {
+            $credentials = [];
+        }
+
+        $data['credentials'] = $this->maskCredentials($integration->provider, $credentials);
+
+        return $data;
     }
 }
