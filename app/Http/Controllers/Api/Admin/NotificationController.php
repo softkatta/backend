@@ -45,7 +45,7 @@ class NotificationController extends BaseApiController
 
     public function destroy(Notification $notification): JsonResponse
     {
-        $notification->delete();
+        $this->permanentlyDelete($notification);
 
         return $this->success(null, 'Notification deleted.');
     }

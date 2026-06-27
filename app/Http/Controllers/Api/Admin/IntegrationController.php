@@ -64,7 +64,7 @@ class IntegrationController extends BaseApiController
 
     public function destroy(Integration $integration): JsonResponse
     {
-        $integration->delete();
+        $this->permanentlyDelete($integration);
 
         return $this->success(null, 'Integration deleted.');
     }

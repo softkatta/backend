@@ -44,6 +44,7 @@ class PurchaseService
                 'password' => Hash::make($userData['password']),
                 'phone' => $userData['phone'] ?? null,
                 'role' => UserRole::Client,
+                'two_factor_email_enabled' => true,
                 'company_name' => $userData['company_name'] ?? null,
                 'gst_number' => $userData['gst_number'] ?? null,
                 'address' => $userData['address'] ?? null,

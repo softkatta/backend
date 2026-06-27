@@ -59,6 +59,8 @@ class InvoiceProfileService
             'company_logo_url' => $company['logo_url'],
             'favicon' => $company['favicon'],
             'favicon_url' => $company['favicon_url'],
+            'gst_number' => $company['gst_number'],
+            'gst_enabled' => $this->hasGstNumber(),
             'gst_rate' => $this->gstRate(),
             'default_currency' => $this->currency(),
             'support_email' => $this->settings()['support_email'] ?? config('invoice.company.email'),
@@ -77,6 +79,10 @@ class InvoiceProfileService
 
     public function gstRate(): float
     {
+        if (! $this->hasGstNumber()) {
+            return 0;
+        }
+
         $raw = $this->settings()['gst_rate'] ?? null;
         if ($raw === null || $raw === '') {
             return (float) config('invoice.gst_rate', 18);
@@ -85,6 +91,13 @@ class InvoiceProfileService
         $rate = (float) $raw;
 
         return max(0, min(100, $rate));
+    }
+
+    public function hasGstNumber(): bool
+    {
+        $gstNumber = trim((string) ($this->company()['gst_number'] ?? ''));
+
+        return $gstNumber !== '';
     }
 
     public function invoicePrefix(): string

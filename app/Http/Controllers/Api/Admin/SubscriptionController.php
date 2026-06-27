@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\BillingAdminService;
+use App\Services\SecurityService;
 use App\Services\TenantService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,26 +18,30 @@ use Illuminate\Support\Carbon;
 
 class SubscriptionController extends BaseApiController
 {
-    public function index(): JsonResponse
+    public function index(Request $request, SecurityService $security): JsonResponse
     {
+        $query = Subscription::withoutGlobalScopes()
+            ->with(['user', 'product', 'plan', 'tenant'])
+            ->latest();
+        $security->applyAdminWorkspaceScope($query, $request);
+
         return $this->success(
-            Subscription::withoutGlobalScopes()
-                ->with(['user', 'product', 'plan', 'tenant'])
-                ->latest()
-                ->paginate(20)
+            $query->paginate(20)
         );
     }
 
-    public function show(Subscription $subscription): JsonResponse
+    public function show(Request $request, Subscription $subscription, SecurityService $security): JsonResponse
     {
+        $query = Subscription::withoutGlobalScopes()
+            ->with(['user', 'product', 'plan', 'tenant', 'invoices']);
+        $security->applyAdminWorkspaceScope($query, $request);
+
         return $this->success(
-            Subscription::withoutGlobalScopes()
-                ->with(['user', 'product', 'plan', 'tenant', 'invoices'])
-                ->findOrFail($subscription->id)
+            $query->findOrFail($subscription->id)
         );
     }
 
-    public function store(Request $request, TenantService $tenantService): JsonResponse
+    public function store(Request $request, TenantService $tenantService, SecurityService $security): JsonResponse
     {
         $data = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
@@ -54,6 +59,10 @@ class SubscriptionController extends BaseApiController
             return $this->error('Subscriptions can only be assigned to customer accounts.', 422);
         }
 
+        if (! $security->isTenantAllowedForAdminWorkspace($user->tenant_id, $request)) {
+            return $this->error('Selected customer is not available in the current admin workspace.', 422);
+        }
+
         $product = Product::findOrFail($data['product_id']);
         $plan = Plan::findOrFail($data['plan_id']);
 
@@ -67,6 +76,10 @@ class SubscriptionController extends BaseApiController
             ], $user);
             $user->update(['tenant_id' => $tenant->id]);
             $user->refresh();
+        }
+
+        if (! $security->isTenantAllowedForAdminWorkspace($user->tenant_id, $request)) {
+            return $this->error('Cannot create subscription in this admin workspace.', 422);
         }
 
         $startsAt = isset($data['starts_at']) ? Carbon::parse($data['starts_at']) : now();
@@ -143,9 +156,13 @@ class SubscriptionController extends BaseApiController
         );
     }
 
-    public function destroy(Subscription $subscription, BillingAdminService $billingAdmin): JsonResponse
+    public function destroy(Request $request, Subscription $subscription, BillingAdminService $billingAdmin, SecurityService $security): JsonResponse
     {
-        $billingAdmin->deleteSubscription($subscription);
+        $query = Subscription::withoutGlobalScopes();
+        $security->applyAdminWorkspaceScope($query, $request);
+        $scopedSubscription = $query->findOrFail($subscription->id);
+
+        $billingAdmin->deleteSubscription($scopedSubscription);
 
         return $this->success(null, 'Subscription deleted.');
     }

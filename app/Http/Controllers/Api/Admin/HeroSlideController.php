@@ -51,7 +51,7 @@ class HeroSlideController extends BaseApiController
             Storage::disk('public')->delete($heroSlide->image);
         }
 
-        $heroSlide->delete();
+        $this->permanentlyDelete($heroSlide);
 
         return $this->success(null, 'Hero slide deleted.');
     }

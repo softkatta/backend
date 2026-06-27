@@ -5,22 +5,112 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Models\Setting;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 
 class SecurityService
 {
+    public function demoAccountEmail(): string
+    {
+        return strtolower(trim($this->setting('demo_account_email')));
+    }
+
+    public function demoAccountTwoFactorEnabled(): bool
+    {
+        return $this->boolSetting('demo_account_2fa_enabled');
+    }
+
+    public function isDemoAccount(User $user): bool
+    {
+        $demoEmail = $this->demoAccountEmail();
+
+        if ($demoEmail === '') {
+            return false;
+        }
+
+        return strtolower(trim((string) $user->email)) === $demoEmail;
+    }
+
+    public function demoTenantId(): ?string
+    {
+        $demoEmail = $this->demoAccountEmail();
+
+        if ($demoEmail === '') {
+            return null;
+        }
+
+        $tenantId = User::query()
+            ->whereRaw('LOWER(email) = ?', [$demoEmail])
+            ->value('tenant_id');
+
+        return is_string($tenantId) && trim($tenantId) !== '' ? $tenantId : null;
+    }
+
+    public function adminWorkspaceMode(Request $request): string
+    {
+        $mode = strtolower(trim((string) $request->query('workspace', 'live')));
+
+        return in_array($mode, ['live', 'demo'], true) ? $mode : 'live';
+    }
+
+    public function applyAdminWorkspaceScope(Builder $query, Request $request, string $tenantColumn = 'tenant_id'): Builder
+    {
+        $mode = $this->adminWorkspaceMode($request);
+
+        $demoTenantId = $this->demoTenantId();
+        if (! $demoTenantId) {
+            return $mode === 'demo' ? $query->whereRaw('1 = 0') : $query;
+        }
+
+        if ($mode === 'demo') {
+            return $query->where($tenantColumn, $demoTenantId);
+        }
+
+        return $query->where($tenantColumn, '!=', $demoTenantId);
+    }
+
+    public function isTenantAllowedForAdminWorkspace(?string $tenantId, Request $request): bool
+    {
+        $mode = $this->adminWorkspaceMode($request);
+
+        $demoTenantId = $this->demoTenantId();
+        if (! $demoTenantId) {
+            return $mode === 'live';
+        }
+
+        if (! is_string($tenantId) || trim($tenantId) === '') {
+            return false;
+        }
+
+        if ($mode === 'demo') {
+            return $tenantId === $demoTenantId;
+        }
+
+        return $tenantId !== $demoTenantId;
+    }
+
+    public function requiresTwoFactorAtLogin(User $user): bool
+    {
+        if ($this->isDemoAccount($user) && ! $this->demoAccountTwoFactorEnabled()) {
+            return false;
+        }
+
+        return $user->requiresTwoFactorAtLogin();
+    }
+
     public function allowEmailOtp(): bool
     {
-        return $this->boolSetting('allow_email_otp', true);
+        return true;
     }
 
     public function allowAuthenticator(): bool
     {
-        return $this->boolSetting('allow_authenticator', true);
+        return true;
     }
 
     public function allowPasskeys(): bool
     {
-        return $this->boolSetting('allow_passkeys', true);
+        return true;
     }
 
     public function enforceTwoFactorForAll(): bool
@@ -40,7 +130,7 @@ class SecurityService
 
     public function enforceTwoFactorForClients(): bool
     {
-        return $this->boolSetting('enforce_2fa_clients');
+        return true;
     }
 
     /**
@@ -86,6 +176,10 @@ class SecurityService
 
     public function enforceTwoFactorForUser(User $user): bool
     {
+        if ($this->isDemoAccount($user)) {
+            return $this->demoAccountTwoFactorEnabled();
+        }
+
         if ($this->enforceTwoFactorForAll()) {
             return true;
         }
@@ -196,9 +290,11 @@ class SecurityService
             'enforce_2fa_all' => $this->enforceTwoFactorForAll(),
             'enforce_2fa_roles' => $this->enforcedRoles(),
             'enforce_2fa_admins' => $this->enforceTwoFactorForAdmins(),
-            'enforce_2fa_clients' => $this->enforceTwoFactorForClients(),
+            'enforce_2fa_clients' => true,
             'allow_users_disable_2fa' => $this->allowUsersDisableTwoFactor(),
             'login_2fa_priority' => $this->loginMethodPriority(),
+            'demo_account_email' => $this->demoAccountEmail(),
+            'demo_account_2fa_enabled' => $this->demoAccountTwoFactorEnabled(),
         ];
     }
 
@@ -275,7 +371,7 @@ class SecurityService
             return false;
         }
 
-        return ! $user->requiresTwoFactorAtLogin();
+        return ! $this->requiresTwoFactorAtLogin($user);
     }
 
     public function mustBlockForTwoFactorSetup(User $user, string $path): bool

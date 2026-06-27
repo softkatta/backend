@@ -6,13 +6,16 @@ use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Subscription;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class BillingAdminService
 {
     public function deletePayment(Payment $payment): void
     {
-        Payment::withoutGlobalScopes()->whereKey($payment->id)->delete();
+        $payment = Payment::withoutGlobalScopes()->findOrFail($payment->id);
+        $this->permanentlyDelete($payment);
     }
 
     public function deleteInvoice(Invoice $invoice): void
@@ -22,10 +25,11 @@ class BillingAdminService
 
             Payment::withoutGlobalScopes()
                 ->where('invoice_id', $invoice->id)
-                ->delete();
+                ->get()
+                ->each(fn (Payment $payment) => $this->permanentlyDelete($payment));
 
-            $invoice->items()->delete();
-            $invoice->delete();
+            $invoice->items()->get()->each(fn (Model $item) => $this->permanentlyDelete($item));
+            $this->permanentlyDelete($invoice);
         });
     }
 
@@ -36,7 +40,8 @@ class BillingAdminService
 
             Payment::withoutGlobalScopes()
                 ->where('order_id', $order->id)
-                ->delete();
+                ->get()
+                ->each(fn (Payment $payment) => $this->permanentlyDelete($payment));
 
             $invoices = Invoice::withoutGlobalScopes()
                 ->where('order_id', $order->id)
@@ -46,7 +51,7 @@ class BillingAdminService
                 $this->deleteInvoice($invoice);
             }
 
-            $order->delete();
+            $this->permanentlyDelete($order);
         });
     }
 
@@ -59,7 +64,18 @@ class BillingAdminService
                 ->where('subscription_id', $subscription->id)
                 ->update(['subscription_id' => null]);
 
-            $subscription->delete();
+            $this->permanentlyDelete($subscription);
         });
+    }
+
+    private function permanentlyDelete(Model $model): void
+    {
+        if (in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
+            $model->forceDelete();
+
+            return;
+        }
+
+        $model->delete();
     }
 }

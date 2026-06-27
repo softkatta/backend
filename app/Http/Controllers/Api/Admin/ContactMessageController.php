@@ -32,7 +32,7 @@ class ContactMessageController extends BaseApiController
 
     public function destroy(ContactMessage $message): JsonResponse
     {
-        $message->delete();
+        $this->permanentlyDelete($message);
 
         return $this->success(null, 'Contact message deleted.');
     }

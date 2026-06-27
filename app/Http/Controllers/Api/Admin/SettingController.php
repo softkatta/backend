@@ -43,7 +43,7 @@ class SettingController extends BaseApiController
 
     public function destroy(Setting $setting): JsonResponse
     {
-        $setting->delete();
+        $this->permanentlyDelete($setting);
 
         return $this->success(null, 'Setting deleted.');
     }

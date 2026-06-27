@@ -29,14 +29,17 @@ class AuthController extends BaseApiController
         }
 
         $validated = $request->validated();
+        $avatarPath = $request->file('avatar')?->store('avatars', 'public');
 
         $user = User::create([
             'name' => trim($validated['first_name'].' '.$validated['last_name']),
             'email' => $validated['email'],
             'password' => $validated['password'],
             'phone' => $validated['phone'] ?? null,
+            'avatar' => $avatarPath,
             'company_name' => $validated['company'] ?? null,
             'role' => UserRole::Client,
+            'two_factor_email_enabled' => true,
             'is_active' => true,
         ]);
 
@@ -74,7 +77,15 @@ class AuthController extends BaseApiController
             ]);
         }
 
-        $passkeyOnly = $user->passkeyOnlyAtLogin() && $security->allowPasskeys();
+        if (! $security->requiresTwoFactorAtLogin($user)
+            && (! $security->isDemoAccount($user) || $security->demoAccountTwoFactorEnabled())) {
+            $user->update(['two_factor_email_enabled' => true]);
+            $user->refresh();
+        }
+
+        $passkeyOnly = $security->requiresTwoFactorAtLogin($user)
+            && $user->passkeyOnlyAtLogin()
+            && $security->allowPasskeys();
         $challenge = $passkeyOnly ? AuthSecurityController::createLoginChallenge($user) : null;
 
         return $this->success([
@@ -129,7 +140,13 @@ class AuthController extends BaseApiController
             $user->refresh();
         }
 
-        if ($user->requiresTwoFactorAtLogin()) {
+        if (! $security->requiresTwoFactorAtLogin($user)
+            && (! $security->isDemoAccount($user) || $security->demoAccountTwoFactorEnabled())) {
+            $user->update(['two_factor_email_enabled' => true]);
+            $user->refresh();
+        }
+
+        if ($security->requiresTwoFactorAtLogin($user)) {
             $challenge = AuthSecurityController::createLoginChallenge($user);
             Auth::logout();
 

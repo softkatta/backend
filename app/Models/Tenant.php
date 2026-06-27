@@ -15,6 +15,8 @@ class Tenant extends Model
         'name',
         'slug',
         'domain',
+        'backend_domain',
+        'frontend_domain',
         'database_name',
         'status',
         'settings',

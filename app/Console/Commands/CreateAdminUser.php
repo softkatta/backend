@@ -44,6 +44,7 @@ class CreateAdminUser extends Command
             'email' => $email,
             'password' => Hash::make($password),
             'role' => UserRole::SuperAdmin,
+            'two_factor_email_enabled' => true,
             'is_active' => true,
             'country' => 'India',
         ]);

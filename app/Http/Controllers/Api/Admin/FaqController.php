@@ -44,7 +44,7 @@ class FaqController extends BaseApiController
 
     public function destroy(Faq $faq): JsonResponse
     {
-        $faq->delete();
+        $this->permanentlyDelete($faq);
 
         return $this->success(null, 'FAQ deleted.');
     }

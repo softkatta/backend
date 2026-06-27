@@ -7,33 +7,40 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\StoreSupportTicketReplyRequest;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
+use App\Services\SecurityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SupportTicketController extends BaseApiController
 {
-    public function index(): JsonResponse
+    public function index(Request $request, SecurityService $security): JsonResponse
     {
+        $query = SupportTicket::withoutGlobalScopes()
+            ->with(['user', 'assignee', 'tenant'])
+            ->latest();
+        $security->applyAdminWorkspaceScope($query, $request);
+
         return $this->success(
-            SupportTicket::withoutGlobalScopes()
-                ->with(['user', 'assignee', 'tenant'])
-                ->latest()
-                ->paginate(20)
+            $query->paginate(20)
         );
     }
 
-    public function show(SupportTicket $supportTicket): JsonResponse
+    public function show(Request $request, SupportTicket $supportTicket, SecurityService $security): JsonResponse
     {
+        $query = SupportTicket::withoutGlobalScopes()
+            ->with(['user', 'assignee', 'tenant', 'replies.user']);
+        $security->applyAdminWorkspaceScope($query, $request);
+
         return $this->success(
-            SupportTicket::withoutGlobalScopes()
-                ->with(['user', 'assignee', 'tenant', 'replies.user'])
-                ->findOrFail($supportTicket->id)
+            $query->findOrFail($supportTicket->id)
         );
     }
 
-    public function update(Request $request, SupportTicket $supportTicket): JsonResponse
+    public function update(Request $request, SupportTicket $supportTicket, SecurityService $security): JsonResponse
     {
-        $ticket = SupportTicket::withoutGlobalScopes()->findOrFail($supportTicket->id);
+        $query = SupportTicket::withoutGlobalScopes();
+        $security->applyAdminWorkspaceScope($query, $request);
+        $ticket = $query->findOrFail($supportTicket->id);
 
         $data = $request->validate([
             'status' => ['sometimes', 'string', 'in:open,in_progress,waiting_on_client,resolved,closed'],
@@ -46,9 +53,11 @@ class SupportTicketController extends BaseApiController
         return $this->success($ticket->fresh()->load('assignee'), 'Ticket updated.');
     }
 
-    public function reply(StoreSupportTicketReplyRequest $request, SupportTicket $supportTicket): JsonResponse
+    public function reply(StoreSupportTicketReplyRequest $request, SupportTicket $supportTicket, SecurityService $security): JsonResponse
     {
-        $ticket = SupportTicket::withoutGlobalScopes()->findOrFail($supportTicket->id);
+        $query = SupportTicket::withoutGlobalScopes();
+        $security->applyAdminWorkspaceScope($query, $request);
+        $ticket = $query->findOrFail($supportTicket->id);
 
         $reply = SupportTicketReply::create([
             'support_ticket_id' => $ticket->id,

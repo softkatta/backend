@@ -56,7 +56,7 @@ class ProductCategoryController extends BaseApiController
 
     public function destroy(ProductCategory $category): JsonResponse
     {
-        $category->delete();
+        $this->permanentlyDelete($category);
 
         return $this->success(null, 'Category deleted.');
     }

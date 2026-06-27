@@ -38,7 +38,7 @@ class AuthSecurityController extends BaseApiController
         }
 
         return $this->success([
-            'two_factor_enabled' => $user->requiresTwoFactorAtLogin(),
+            'two_factor_enabled' => $security->requiresTwoFactorAtLogin($user),
             'two_factor_type' => $user->twoFactorType(),
             'methods' => self::formatTwoFactorMethods($user),
             'enabled_methods' => $enabledMethods,
@@ -208,7 +208,7 @@ class AuthSecurityController extends BaseApiController
 
         $user = self::resolveChallengeUser($data['challenge_token']);
 
-        if (! $user || ! $user->requiresTwoFactorAtLogin()) {
+        if (! $user || ! $security->requiresTwoFactorAtLogin($user)) {
             Cache::forget(self::challengeCacheKeyPublic($data['challenge_token']));
 
             return $this->error('Invalid login verification.', 422);
@@ -340,6 +340,7 @@ class AuthSecurityController extends BaseApiController
      */
     public static function formatUser(User $user): array
     {
+        $security = app(SecurityService::class);
         $nameParts = preg_split('/\s+/', trim($user->name), 2) ?: ['', ''];
         $role = $user->role instanceof \App\Enums\UserRole ? $user->role->value : (string) $user->role;
 
@@ -353,7 +354,8 @@ class AuthSecurityController extends BaseApiController
             'company' => $user->company_name,
             'phone' => $user->phone,
             'is_active' => $user->is_active ?? true,
-            'two_factor_enabled' => $user->requiresTwoFactorAtLogin(),
+            'two_factor_enabled' => $security->requiresTwoFactorAtLogin($user),
+            'is_demo_account' => $security->isDemoAccount($user),
             'login_alerts_enabled' => (bool) ($user->login_alerts_enabled ?? true),
             'created_at' => $user->created_at?->toIso8601String(),
         ];

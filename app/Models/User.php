@@ -66,6 +66,15 @@ class User extends Authenticatable
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $user): void {
+            if ($user->two_factor_email_enabled === null) {
+                $user->two_factor_email_enabled = true;
+            }
+        });
+    }
+
     public function isSuperAdmin(): bool
     {
         return $this->role === UserRole::SuperAdmin;
@@ -224,6 +233,12 @@ class User extends Authenticatable
             $methods[] = 'email';
         }
 
-        return $security->sortMethodsByPriority($security->filterAllowedMethods($methods));
+        $allowedMethods = $security->filterAllowedMethods($methods);
+
+        if ($this->isClient() && $this->hasEmailTwoFactor() && ! in_array('email', $allowedMethods, true)) {
+            $allowedMethods[] = 'email';
+        }
+
+        return $security->sortMethodsByPriority($allowedMethods);
     }
 }

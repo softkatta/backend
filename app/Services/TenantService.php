@@ -28,11 +28,15 @@ class TenantService
     public function create(array $data, ?User $owner = null): Tenant
     {
         $slug = $data['slug'] ?? $this->generateSlug($data['name']);
+        $frontendDomain = $data['frontend_domain'] ?? $data['domain'] ?? null;
+        $backendDomain = $data['backend_domain'] ?? null;
 
         return Tenant::create([
             'name' => $data['name'],
             'slug' => $slug,
-            'domain' => $data['domain'] ?? null,
+            'domain' => $frontendDomain,
+            'backend_domain' => $backendDomain,
+            'frontend_domain' => $frontendDomain,
             'database_name' => $data['database_name'] ?? null,
             'status' => $data['status'] ?? 'active',
             'settings' => $data['settings'] ?? [
@@ -47,6 +51,12 @@ class TenantService
     {
         if (isset($data['name']) && ! isset($data['slug'])) {
             $data['slug'] = $this->generateSlug($data['name']);
+        }
+
+        if (array_key_exists('frontend_domain', $data)) {
+            $data['domain'] = $data['frontend_domain'];
+        } elseif (array_key_exists('domain', $data)) {
+            $data['frontend_domain'] = $data['domain'];
         }
 
         $tenant->update($data);

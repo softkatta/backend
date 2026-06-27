@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\SubscriptionStatus;
+use App\Models\Subscription;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -31,6 +33,23 @@ class EnsureTenantAccess
 
         if (! $user->is_active) {
             return response()->json(['message' => 'Your account has been deactivated.'], 403);
+        }
+
+        // Tenant project access requires an active (or currently expiring) subscription.
+        $hasEntitledSubscription = Subscription::query()
+            ->where('tenant_id', $user->tenant_id)
+            ->whereIn('status', [SubscriptionStatus::Active->value, SubscriptionStatus::ExpiringSoon->value])
+            ->where(function ($query): void {
+                $query->whereNull('ends_at')
+                    ->orWhere('ends_at', '>=', now());
+            })
+            ->exists();
+
+        if (! $hasEntitledSubscription) {
+            return response()->json([
+                'message' => 'Subscription inactive or expired. Project access is blocked.',
+                'errors' => ['code' => 'SUBSCRIPTION_INACTIVE'],
+            ], 403);
         }
 
         $tenantId = $request->route('tenant') ?? $request->input('tenant_id');

@@ -50,7 +50,7 @@ class TestimonialController extends BaseApiController
 
     public function destroy(Testimonial $testimonial): JsonResponse
     {
-        $testimonial->delete();
+        $this->permanentlyDelete($testimonial);
 
         return $this->success(null, 'Testimonial deleted.');
     }

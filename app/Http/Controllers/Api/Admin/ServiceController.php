@@ -56,7 +56,7 @@ class ServiceController extends BaseApiController
 
     public function destroy(Service $service): JsonResponse
     {
-        $service->delete();
+        $this->permanentlyDelete($service);
 
         return $this->success(null, 'Service deleted.');
     }

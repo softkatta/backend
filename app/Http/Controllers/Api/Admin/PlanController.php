@@ -40,7 +40,7 @@ class PlanController extends BaseApiController
 
     public function destroy(Plan $plan): JsonResponse
     {
-        $plan->delete();
+        $this->permanentlyDelete($plan);
 
         return $this->success(null, 'Plan deleted.');
     }

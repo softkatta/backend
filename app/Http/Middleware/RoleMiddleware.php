@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\SecurityService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,6 +19,11 @@ class RoleMiddleware
 
         if (empty($roles)) {
             return $next($request);
+        }
+
+        $security = app(SecurityService::class);
+        if ($security->isDemoAccount($user) && str_starts_with(trim($request->path(), '/'), 'api/v1/admin/')) {
+            return response()->json(['message' => 'Demo account can only access demo workspace data.'], 403);
         }
 
         $userRole = $user->role?->value ?? $user->role;

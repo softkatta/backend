@@ -56,6 +56,7 @@
     ]);
     $address = implode(', ', $addressParts);
     $taxRate = $invoice->items->first()?->tax_rate ?? 18;
+    $companyGst = trim((string) ($gst['gst_number'] ?? $company['gst_number'] ?? ''));
     $statusVal = $invoice->status->value ?? (string) $invoice->status;
     $hasDue = $statusVal !== 'paid' && $statusVal !== 'cancelled';
     $isPaid = $statusVal === 'paid';
@@ -108,7 +109,9 @@
                                                 <div style="font-size:7px; color:#e0f2fe; margin-top:3px;">{{ $company['address'] }}</div>
                                                 <div style="font-size:7px; color:#e0f2fe; margin-top:2px;">{{ $company['phone'] }} &middot; {{ $company['email'] }}</div>
                                                 <div style="font-size:7px; color:#e0f2fe;">{{ str_replace('https://', '', $company['website']) }}</div>
-                                                <div style="font-size:7px; color:#ffffff; font-weight:bold; margin-top:3px;">GSTIN: {{ $gst['gst_number'] ?? $company['gst_number'] }}</div>
+                                                @if($companyGst !== '')
+                                                <div style="font-size:7px; color:#ffffff; font-weight:bold; margin-top:3px;">GSTIN: {{ $companyGst }}</div>
+                                                @endif
                                             </td>
                                         </tr>
                                     </table>

@@ -63,7 +63,7 @@ class ProductController extends BaseApiController
 
     public function destroy(Product $product): JsonResponse
     {
-        $product->delete();
+        $this->permanentlyDelete($product);
 
         return $this->success(null, 'Product deleted.');
     }

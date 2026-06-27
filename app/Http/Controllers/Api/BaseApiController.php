@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\JsonResponse;
 
 abstract class BaseApiController extends Controller
@@ -23,5 +25,16 @@ abstract class BaseApiController extends Controller
             'message' => $message,
             'errors' => $errors,
         ], $code);
+    }
+
+    protected function permanentlyDelete(Model $model): void
+    {
+        if (in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
+            $model->forceDelete();
+
+            return;
+        }
+
+        $model->delete();
     }
 }

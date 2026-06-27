@@ -11,6 +11,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(RoleSeeder::class);
+        $this->call(ContentSeeder::class);
 
         $settings = [
             ['key' => 'company_name', 'value' => '', 'group' => 'general'],
