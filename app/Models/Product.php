@@ -67,4 +67,29 @@ class Product extends Model
     {
         return $this->hasMany(Order::class);
     }
+
+    public function productIntegration(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ProductIntegration::class);
+    }
+
+    public function installerSlug(): string
+    {
+        if (! empty($this->meta['installer_slug'])) {
+            return (string) $this->meta['installer_slug'];
+        }
+
+        return match ($this->slug) {
+            'study-point-erp' => 'study-point',
+            'coaching-erp' => 'coaching',
+            'library-management-system' => 'library',
+            'gym-management-system' => 'gym',
+            default => (string) $this->slug,
+        };
+    }
+
+    public function currentVersion(): string
+    {
+        return (string) ($this->meta['current_version'] ?? '1.0.0');
+    }
 }

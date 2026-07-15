@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\BillingAdminService;
+use App\Services\LicenseService;
 use App\Services\SecurityService;
 use App\Services\TenantService;
 use Illuminate\Http\JsonResponse;
@@ -107,6 +108,11 @@ class SubscriptionController extends BaseApiController
             'trial_ends_at' => $trialEndsAt,
             'auto_renew' => $data['auto_renew'] ?? true,
         ]);
+
+        // Auto-generate license key for active/trial subscriptions
+        if (in_array($subscription->status, [SubscriptionStatus::Active, SubscriptionStatus::Trial])) {
+            app(LicenseService::class)->generateForSubscription($subscription);
+        }
 
         return $this->success(
             $subscription->load(['user', 'product', 'plan', 'tenant']),

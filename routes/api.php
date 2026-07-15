@@ -21,6 +21,13 @@ use App\Http\Controllers\Api\Admin\TenantController;
 use App\Http\Controllers\Api\Admin\TestimonialController as AdminTestimonialController;
 use App\Http\Controllers\Api\Admin\UploadController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\Admin\LicenseController as AdminLicenseController;
+use App\Http\Controllers\Api\Admin\ProductIntegrationController as AdminProductIntegrationController;
+use App\Http\Controllers\Api\Central\LicenseController as CentralLicenseController;
+use App\Http\Controllers\Api\Central\ProductController as CentralProductController;
+use App\Http\Controllers\Api\Central\ProductIntegrationController as CentralProductIntegrationController;
+use App\Http\Controllers\Api\Client\LicenseController as ClientLicenseController;
+use App\Http\Controllers\Api\Webhook\PaymentWebhookController;
 use App\Http\Controllers\Api\Client\DashboardController;
 use App\Http\Controllers\Api\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Api\Client\NotificationController as ClientNotificationController;
@@ -192,5 +199,80 @@ Route::prefix('v1')->group(function (): void {
         Route::post('settings/bulk', [SettingController::class, 'bulkUpdate']);
         Route::post('integrations/{integration}/test-email', [IntegrationController::class, 'sendTestEmail']);
         Route::apiResource('integrations', IntegrationController::class)->except(['show']);
+
+        // License Management
+        Route::get('licenses', [AdminLicenseController::class, 'index']);
+        Route::post('licenses', [AdminLicenseController::class, 'store']);
+        Route::get('licenses/{license}', [AdminLicenseController::class, 'show']);
+        Route::put('licenses/{license}', [AdminLicenseController::class, 'update']);
+        Route::delete('licenses/{license}', [AdminLicenseController::class, 'destroy']);
+        Route::post('licenses/{license}/suspend', [AdminLicenseController::class, 'suspend']);
+        Route::post('licenses/{license}/revoke', [AdminLicenseController::class, 'revoke']);
+        Route::post('licenses/{license}/activate', [AdminLicenseController::class, 'activateLicense']);
+        Route::post('licenses/{license}/reset-domains', [AdminLicenseController::class, 'resetDomains']);
+        Route::post('licenses/{license}/force-logout', [AdminLicenseController::class, 'forceLogout']);
+        Route::get('licenses/{license}/activity', [AdminLicenseController::class, 'activity']);
+        Route::get('licenses/{license}/history', [AdminLicenseController::class, 'history']);
+
+        Route::get('product-integrations', [AdminProductIntegrationController::class, 'index']);
+        Route::post('product-integrations', [AdminProductIntegrationController::class, 'store']);
+        Route::get('product-integrations/api-logs', [AdminProductIntegrationController::class, 'apiLogs']);
+        Route::get('product-integrations/domain-reset-requests', [AdminProductIntegrationController::class, 'domainResetRequests']);
+        Route::post('product-integrations/domain-reset-requests/{domainResetRequest}/review', [AdminProductIntegrationController::class, 'reviewDomainReset']);
+        Route::get('product-integrations/{productIntegration}', [AdminProductIntegrationController::class, 'show']);
+        Route::put('product-integrations/{productIntegration}', [AdminProductIntegrationController::class, 'update']);
+        Route::delete('product-integrations/{productIntegration}', [AdminProductIntegrationController::class, 'destroy']);
+        Route::post('product-integrations/{productIntegration}/regenerate-keys', [AdminProductIntegrationController::class, 'regenerateKeys']);
+        Route::get('product-integrations/{productIntegration}/guide', [AdminProductIntegrationController::class, 'guide']);
+    });
+
+    // ---------------------------------------------------------------
+    // Central API — used by SoftKatta products for license validation
+    // Rate limited: 60 requests/minute per IP
+    // ---------------------------------------------------------------
+    Route::middleware(['throttle:60,1'])->prefix('central')->group(function (): void {
+        // Legacy license verification (unsigned)
+        Route::post('license/verify', [CentralLicenseController::class, 'verify']);
+        Route::post('license/activate-domain', [CentralLicenseController::class, 'activateDomain']);
+        Route::post('license/deactivate-domain', [CentralLicenseController::class, 'deactivateDomain']);
+
+        // Signed product integration API
+        Route::middleware(['product.api'])->group(function (): void {
+            Route::post('license/check', [CentralProductIntegrationController::class, 'check']);
+            Route::post('license/activate', [CentralProductIntegrationController::class, 'activate']);
+            Route::post('license/deactivate', [CentralProductIntegrationController::class, 'deactivate']);
+            Route::get('subscription', [CentralProductIntegrationController::class, 'subscription']);
+            Route::get('modules', [CentralProductIntegrationController::class, 'modules']);
+            Route::get('limits', [CentralProductIntegrationController::class, 'limits']);
+            Route::get('addons', [CentralProductIntegrationController::class, 'addons']);
+            Route::post('heartbeat', [CentralProductIntegrationController::class, 'heartbeat']);
+        });
+
+        // Product & plan catalogue
+        Route::get('products', [CentralProductController::class, 'index']);
+        Route::get('products/{slug}/plans', [CentralProductController::class, 'plans']);
+    });
+
+    // ---------------------------------------------------------------
+    // Client License endpoints (under existing client middleware)
+    // ---------------------------------------------------------------
+    Route::middleware(['session.timeout', 'auth:sanctum', 'security.policy', 'maintenance', 'role:client', 'tenant'])->prefix('client')->group(function (): void {
+        Route::get('licenses', [ClientLicenseController::class, 'index']);
+        Route::get('licenses/{license}', [ClientLicenseController::class, 'show']);
+        Route::post('licenses/{license}/domains', [ClientLicenseController::class, 'registerDomain']);
+        Route::delete('licenses/{license}/domains', [ClientLicenseController::class, 'removeDomain']);
+        Route::post('licenses/{license}/domain-reset-request', [ClientLicenseController::class, 'requestDomainReset']);
+        Route::post('licenses/{license}/activate-product', [ClientLicenseController::class, 'activateProduct']);
+        Route::post('licenses/{license}/deactivate-product', [ClientLicenseController::class, 'deactivateProduct']);
+        Route::get('licenses/{license}/activity', [ClientLicenseController::class, 'activity']);
+        Route::get('licenses/{license}/history', [ClientLicenseController::class, 'history']);
+    });
+
+    // ---------------------------------------------------------------
+    // Payment Webhooks — CSRF exempt (handled by route placement)
+    // ---------------------------------------------------------------
+    Route::prefix('webhooks')->group(function (): void {
+        Route::post('razorpay', [PaymentWebhookController::class, 'razorpay']);
     });
 });
+

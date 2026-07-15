@@ -27,6 +27,7 @@ class PurchaseService
         protected NotificationService $notificationService,
         protected PaymentService $paymentService,
         protected InvoiceProfileService $invoiceProfile,
+        protected LicenseService $licenseService,
     ) {}
 
     /**
@@ -110,6 +111,8 @@ class PurchaseService
                 $this->invoiceService->markAsPaid($invoice);
             }
 
+            $this->issueLicenseIfEligible($subscription);
+
             $this->notificationService->send(
                 $user,
                 'subscription_created',
@@ -152,6 +155,7 @@ class PurchaseService
                 $invoice->update(['status' => InvoiceStatus::Sent]);
             } else {
                 $this->invoiceService->markAsPaid($invoice);
+                $this->issueLicenseIfEligible($subscription);
             }
 
             $this->notificationService->send(
@@ -230,6 +234,7 @@ class PurchaseService
 
             if ($subscription) {
                 $subscription->update(['status' => SubscriptionStatus::Active]);
+                $this->issueLicenseIfEligible($subscription);
             }
 
             return [
@@ -240,6 +245,17 @@ class PurchaseService
                 'already_completed' => false,
             ];
         });
+    }
+
+    protected function issueLicenseIfEligible(Subscription $subscription): void
+    {
+        $subscription->refresh();
+
+        if (! in_array($subscription->status, [SubscriptionStatus::Active, SubscriptionStatus::Trial], true)) {
+            return;
+        }
+
+        $this->licenseService->generateForSubscription($subscription);
     }
 
     protected function createSubscription(User $user, Product $product, Plan $plan, bool $requiresPayment): Subscription

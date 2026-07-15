@@ -21,11 +21,6 @@ class RoleMiddleware
             return $next($request);
         }
 
-        $security = app(SecurityService::class);
-        if ($security->isDemoAccount($user) && str_starts_with(trim($request->path(), '/'), 'api/v1/admin/')) {
-            return response()->json(['message' => 'Demo account can only access demo workspace data.'], 403);
-        }
-
         $userRole = $user->role?->value ?? $user->role;
 
         if (! in_array($userRole, $roles, true) && ! $user->hasAnyRole($roles)) {

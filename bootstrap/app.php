@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'maintenance' => EnsureSiteNotInMaintenance::class,
             'security.policy' => \App\Http\Middleware\EnforceSecurityPolicy::class,
             'session.timeout' => \App\Http\Middleware\EnforceSessionTimeout::class,
+            'product.api' => \App\Http\Middleware\VerifyProductApiSignature::class,
         ]);
 
         $middleware->api(prepend: [

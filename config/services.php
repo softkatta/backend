@@ -36,7 +36,12 @@ return [
     ],
 
     'razorpay' => [
-        'verify_ssl' => env('RAZORPAY_VERIFY_SSL', env('APP_ENV', 'production') !== 'local'),
+        'verify_ssl'     => env('RAZORPAY_VERIFY_SSL', env('APP_ENV', 'production') !== 'local'),
+        'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET'),
+    ],
+
+    'central' => [
+        'api_secret' => env('CENTRAL_API_SECRET'),
     ],
 
 ];

@@ -55,4 +55,9 @@ class Subscription extends Model
     {
         return $this->hasMany(Invoice::class);
     }
+
+    public function licenseKey(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(LicenseKey::class);
+    }
 }

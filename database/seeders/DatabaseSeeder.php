@@ -4,7 +4,9 @@ namespace Database\Seeders;
 
 use App\Models\Integration;
 use App\Models\Setting;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -12,6 +14,17 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(RoleSeeder::class);
         $this->call(ContentSeeder::class);
+
+        // Create Super Admin from env
+        $superAdmin = User::firstOrCreate(
+            ['email' => env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com')],
+            [
+                'name'     => env('SUPER_ADMIN_NAME', 'Super Admin'),
+                'password' => Hash::make(env('SUPER_ADMIN_PASSWORD', 'Admin@123')),
+                'is_active' => true,
+            ]
+        );
+        $superAdmin->assignRole('super_admin');
 
         $settings = [
             ['key' => 'company_name', 'value' => '', 'group' => 'general'],
