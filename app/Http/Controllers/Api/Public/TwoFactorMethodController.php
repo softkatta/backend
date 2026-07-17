@@ -245,7 +245,7 @@ class TwoFactorMethodController extends BaseApiController
 
         $user = AuthSecurityController::resolveChallengeUser($data['challenge_token']);
 
-        if (! $user) {
+        if (! $user || ! $user->hasPasskeyTwoFactor()) {
             return $this->error('Login verification expired. Please sign in again.', 422);
         }
 

@@ -101,19 +101,19 @@ class SecurityService
 
     public function requiresTwoFactorAtLogin(User $user): bool
     {
-        if (! $this->twoFactorLoginEnabled()) {
-            return false;
-        }
-
-        if ($user->isEmployee() || $user->isHrManager()) {
-            return false;
-        }
-
         if ($this->isDemoAccount($user) && ! $this->demoAccountTwoFactorEnabled()) {
             return false;
         }
 
-        return $user->requiresTwoFactorAtLogin();
+        // Personal 2FA methods always apply at login for every role — the platform
+        // `two_factor_login_enabled` flag must not bypass them.
+        if ($user->requiresTwoFactorAtLogin()) {
+            return true;
+        }
+
+        // Platform toggle only auto-enables methods for users who have none yet
+        // (see shouldAutoEnableEmailTwoFactorAtLogin); it does not invent a challenge.
+        return false;
     }
 
     public function shouldAutoEnableEmailTwoFactorAtLogin(User $user): bool

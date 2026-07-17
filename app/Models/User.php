@@ -251,12 +251,8 @@ class User extends Authenticatable
             $methods[] = 'email';
         }
 
-        $allowedMethods = $security->filterAllowedMethods($methods);
-
-        if ($this->isClient() && $this->hasEmailTwoFactor() && ! in_array('email', $allowedMethods, true)) {
-            $allowedMethods[] = 'email';
-        }
-
-        return $security->sortMethodsByPriority($allowedMethods);
+        // Login must always expose already-enabled methods. Platform allow_*
+        // settings only gate enabling new methods, not using existing ones.
+        return $security->sortMethodsByPriority($methods);
     }
 }

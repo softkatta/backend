@@ -185,7 +185,7 @@ class UserController extends BaseApiController
             'phone' => $validated['phone'] ?? null,
             'company_name' => $validated['company_name'] ?? null,
             'role' => UserRole::Client,
-            'two_factor_email_enabled' => true,
+            'two_factor_email_enabled' => $security->twoFactorLoginEnabled(),
             'is_active' => $validated['is_active'] ?? true,
             'tenant_id' => $workspace === 'demo' ? $demoTenantId : null,
         ]);
