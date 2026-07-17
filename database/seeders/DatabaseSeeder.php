@@ -22,21 +22,35 @@ class DatabaseSeeder extends Seeder
         $this->call(ChatbotSeeder::class);
 
         // Create / repair Super Admin from env
+        $superAdminEmail = (string) env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com');
+        $superAdminName = (string) env('SUPER_ADMIN_NAME', 'Super Admin');
+        $superAdminPassword = trim((string) env('SUPER_ADMIN_PASSWORD', ''));
+        if ($superAdminPassword === '') {
+            $superAdminPassword = 'Admin@123';
+        }
+
         $superAdmin = User::firstOrCreate(
-            ['email' => env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com')],
+            ['email' => $superAdminEmail],
             [
-                'name' => env('SUPER_ADMIN_NAME', 'Super Admin'),
-                'password' => Hash::make(env('SUPER_ADMIN_PASSWORD', 'Admin@123')),
+                'name' => $superAdminName,
+                'password' => Hash::make($superAdminPassword),
                 'role' => \App\Enums\UserRole::SuperAdmin,
                 'is_active' => true,
             ]
         );
-        // Repair if the account already existed with a non-admin role (common local seed issue).
-        $superAdmin->forceFill([
-            'name' => $superAdmin->name ?: env('SUPER_ADMIN_NAME', 'Super Admin'),
+
+        // Repair role/active. Also reset password when env provides one (or account was just created with blank env).
+        $repair = [
+            'name' => $superAdmin->name ?: $superAdminName,
             'role' => \App\Enums\UserRole::SuperAdmin,
             'is_active' => true,
-        ])->save();
+        ];
+
+        if (trim((string) env('SUPER_ADMIN_PASSWORD', '')) !== '') {
+            $repair['password'] = Hash::make($superAdminPassword);
+        }
+
+        $superAdmin->forceFill($repair)->save();
         $superAdmin->syncRoles(['super_admin']);
 
         $settings = [
