@@ -23,7 +23,7 @@ class CheckAdminRole extends Command
         } else {
             $query->where(function ($inner): void {
                 $inner->whereIn('email', array_filter([
-                    env('SUPER_ADMIN_EMAIL'),
+                    config('softkatta.super_admin.email'),
                     'admin@softkatta.com',
                     'admin@softkatta.in',
                 ]))->orWhere('role', UserRole::SuperAdmin->value)

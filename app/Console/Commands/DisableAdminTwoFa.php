@@ -14,7 +14,7 @@ class DisableAdminTwoFa extends Command
 
     public function handle(): int
     {
-        $adminEmail = strtolower(trim((string) env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com')));
+        $adminEmail = strtolower(trim((string) config('softkatta.super_admin.email', 'admin@softkatta.com')));
         $admin = User::query()->whereRaw('LOWER(email) = ?', [$adminEmail])->first();
 
         if (! $admin) {

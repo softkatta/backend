@@ -87,7 +87,7 @@ class FixAdminRole extends Command
         }
 
         $candidates = array_values(array_unique(array_filter([
-            strtolower((string) env('SUPER_ADMIN_EMAIL', '')),
+            strtolower((string) config('softkatta.super_admin.email', '')),
             'admin@softkatta.com',
             'admin@softkatta.in',
         ])));

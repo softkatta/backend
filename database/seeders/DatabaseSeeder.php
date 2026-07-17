@@ -2,17 +2,22 @@
 
 namespace Database\Seeders;
 
+use App\Enums\UserRole;
 use App\Models\Integration;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
         $this->call(RoleSeeder::class);
+
+        // Super Admin first (after roles exist) so it never stays as default "client".
+        $this->seedSuperAdmin();
+
         $this->call(CompanyRoleSeeder::class);
         $this->call(PortalMenuSeeder::class);
         $this->call(CompanyRoleMenuSeeder::class);
@@ -21,37 +26,8 @@ class DatabaseSeeder extends Seeder
         $this->call(CouponOfferSeeder::class);
         $this->call(ChatbotSeeder::class);
 
-        // Create / repair Super Admin from env
-        $superAdminEmail = (string) env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com');
-        $superAdminName = (string) env('SUPER_ADMIN_NAME', 'Super Admin');
-        $superAdminPassword = trim((string) env('SUPER_ADMIN_PASSWORD', ''));
-        if ($superAdminPassword === '') {
-            $superAdminPassword = 'Admin@123';
-        }
-
-        $superAdmin = User::firstOrCreate(
-            ['email' => $superAdminEmail],
-            [
-                'name' => $superAdminName,
-                'password' => Hash::make($superAdminPassword),
-                'role' => \App\Enums\UserRole::SuperAdmin,
-                'is_active' => true,
-            ]
-        );
-
-        // Repair role/active. Also reset password when env provides one (or account was just created with blank env).
-        $repair = [
-            'name' => $superAdmin->name ?: $superAdminName,
-            'role' => \App\Enums\UserRole::SuperAdmin,
-            'is_active' => true,
-        ];
-
-        if (trim((string) env('SUPER_ADMIN_PASSWORD', '')) !== '') {
-            $repair['password'] = Hash::make($superAdminPassword);
-        }
-
-        $superAdmin->forceFill($repair)->save();
-        $superAdmin->syncRoles(['super_admin']);
+        // Repair again after other seeders in case anything touched the admin row.
+        $this->seedSuperAdmin();
 
         $settings = [
             ['key' => 'company_name', 'value' => '', 'group' => 'general'],
@@ -168,5 +144,56 @@ class DatabaseSeeder extends Seeder
                 'is_active' => false,
             ]
         );
+    }
+
+    private function seedSuperAdmin(): void
+    {
+        // Use config() so this works even when `php artisan config:cache` is active.
+        $email = strtolower(trim((string) config('softkatta.super_admin.email', 'admin@softkatta.com')));
+        $name = trim((string) config('softkatta.super_admin.name', 'Super Admin')) ?: 'Super Admin';
+        $password = trim((string) config('softkatta.super_admin.password', ''));
+        if ($password === '') {
+            $password = 'Admin@123';
+        }
+
+        if ($email === '') {
+            $this->command?->error('SUPER_ADMIN_EMAIL is empty — set it in .env before seeding.');
+
+            return;
+        }
+
+        Role::findOrCreate('super_admin', 'web');
+
+        $superAdmin = User::query()->firstOrNew(['email' => $email]);
+        $wasNew = ! $superAdmin->exists;
+
+        // Plain password — User model casts password as "hashed".
+        $superAdmin->forceFill([
+            'name' => $name,
+            'email' => $email,
+            'password' => $password,
+            'role' => UserRole::SuperAdmin,
+            'is_active' => true,
+            'two_factor_email_enabled' => $superAdmin->two_factor_email_enabled ?? false,
+        ])->save();
+
+        $superAdmin->syncRoles(['super_admin']);
+        $superAdmin->refresh();
+
+        $roleValue = $superAdmin->role instanceof UserRole
+            ? $superAdmin->role->value
+            : (string) $superAdmin->role;
+
+        $this->command?->info(sprintf(
+            'Super Admin %s: %s (role=%s, active=%s)',
+            $wasNew ? 'created' : 'repaired',
+            $superAdmin->email,
+            $roleValue,
+            $superAdmin->is_active ? 'yes' : 'no',
+        ));
+
+        if ($roleValue !== UserRole::SuperAdmin->value) {
+            $this->command?->error('Super Admin role failed to persist as super_admin — check users.role column.');
+        }
     }
 }

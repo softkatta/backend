@@ -24,4 +24,16 @@ return [
 
     'company_timestamp_skew' => (int) env('SOFTKATTA_COMPANY_TIMESTAMP_SKEW', 300),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Super Admin (seeded from .env on migrate --seed / db:seed)
+    |--------------------------------------------------------------------------
+    */
+
+    'super_admin' => [
+        'name' => env('SUPER_ADMIN_NAME', 'Super Admin'),
+        'email' => env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com'),
+        'password' => env('SUPER_ADMIN_PASSWORD', 'Admin@123'),
+    ],
+
 ];
