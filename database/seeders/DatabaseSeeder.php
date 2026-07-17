@@ -21,16 +21,23 @@ class DatabaseSeeder extends Seeder
         $this->call(CouponOfferSeeder::class);
         $this->call(ChatbotSeeder::class);
 
-        // Create Super Admin from env
+        // Create / repair Super Admin from env
         $superAdmin = User::firstOrCreate(
             ['email' => env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com')],
             [
-                'name'     => env('SUPER_ADMIN_NAME', 'Founder / Owner'),
+                'name' => env('SUPER_ADMIN_NAME', 'Founder / Owner'),
                 'password' => Hash::make(env('SUPER_ADMIN_PASSWORD', 'Admin@123')),
+                'role' => \App\Enums\UserRole::SuperAdmin,
                 'is_active' => true,
             ]
         );
-        $superAdmin->assignRole('super_admin');
+        // Repair if the account already existed with a non-admin role (common local seed issue).
+        $superAdmin->forceFill([
+            'name' => $superAdmin->name ?: env('SUPER_ADMIN_NAME', 'Founder / Owner'),
+            'role' => \App\Enums\UserRole::SuperAdmin,
+            'is_active' => true,
+        ])->save();
+        $superAdmin->syncRoles(['super_admin']);
 
         $settings = [
             ['key' => 'company_name', 'value' => '', 'group' => 'general'],
