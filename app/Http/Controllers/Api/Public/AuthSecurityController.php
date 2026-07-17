@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api\Public;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\LoginLog;
 use App\Models\User;
+use App\Services\CompanyRoleMenuService;
 use App\Services\EmailOtpService;
 use App\Services\RecoveryCodeService;
+use App\Services\AuthTokenService;
 use App\Services\SecurityService;
+use App\Services\MailTemplateService;
 use App\Services\SmtpMailService;
 use App\Services\TrustedDeviceService;
 use App\Services\TwoFactorService;
@@ -255,14 +258,15 @@ class AuthSecurityController extends BaseApiController
 
         self::sendLoginAlert($user, $request);
 
-        $token = self::issueAccessToken($user, $security);
+        $tokens = self::issueAuthTokens($user);
 
         return response()->json([
             'success' => true,
             'message' => 'Login successful.',
             'data' => [
-                'user' => self::formatUser($user->load('tenant', 'roles')),
-                'access_token' => $token,
+                'user' => self::formatUser($user->load(self::authUserRelations())),
+                'access_token' => $tokens['access_token'],
+                'refresh_token' => $tokens['refresh_token'],
             ],
         ]);
     }
@@ -307,7 +311,15 @@ class AuthSecurityController extends BaseApiController
 
     public static function issueAccessToken(User $user, SecurityService $security): string
     {
-        return $user->createToken('softkatta-api', ['*'])->plainTextToken;
+        return self::issueAuthTokens($user)['access_token'];
+    }
+
+    /**
+     * @return array{access_token: string, refresh_token: string}
+     */
+    public static function issueAuthTokens(User $user): array
+    {
+        return app(AuthTokenService::class)->issueTokenPair($user);
     }
 
     public static function sendLoginAlert(User $user, Request $request): void
@@ -317,22 +329,37 @@ class AuthSecurityController extends BaseApiController
         }
 
         try {
-            $appName = config('app.name', 'SoftKatta');
+            $company = app(MailTemplateService::class)->displayName();
+            $templates = app(MailTemplateService::class);
 
             app(SmtpMailService::class)->send(
                 $user->email,
-                "[{$appName}] New sign-in detected",
+                $templates->formatSubject('New sign-in detected'),
                 sprintf(
                     "A new sign-in to your %s account was detected.\n\nTime: %s\nIP: %s\nDevice: %s",
-                    $appName,
+                    $company,
                     now()->toDayDateTimeString(),
                     $request->ip() ?? 'unknown',
                     $request->userAgent() ?? 'unknown',
                 ),
+                'New sign-in detected',
+                [
+                    'Time' => now()->toDayDateTimeString(),
+                    'IP address' => $request->ip() ?? 'unknown',
+                    'Device' => $request->userAgent() ?? 'unknown',
+                ],
             );
         } catch (\Throwable) {
             // Do not block login if mail fails.
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function authUserRelations(): array
+    {
+        return ['tenant', 'roles', 'employeeProfile.companyRole'];
     }
 
     /**
@@ -344,12 +371,37 @@ class AuthSecurityController extends BaseApiController
         $nameParts = preg_split('/\s+/', trim($user->name), 2) ?: ['', ''];
         $role = $user->role instanceof \App\Enums\UserRole ? $user->role->value : (string) $user->role;
 
+        $permissions = $user->getAllPermissions()->pluck('name')->values()->all();
+        $companyRole = $user->employeeProfile?->companyRole;
+        $companyRolePayload = null;
+        $employeePortalPaths = null;
+
+        if ($role === 'employee') {
+            if ($companyRole) {
+                $companyRolePayload = [
+                    'name' => $companyRole->name,
+                    'slug' => $companyRole->slug,
+                    'category' => $companyRole->category,
+                ];
+            }
+
+            $employeePortalPaths = CompanyRoleMenuService::pathsFor(
+                $companyRole?->slug,
+                $companyRole?->category,
+                $companyRole?->employee_portal_menus,
+                $companyRole,
+            );
+        }
+
         return [
             'id' => (string) $user->id,
             'email' => $user->email,
             'first_name' => $nameParts[0] ?? '',
             'last_name' => $nameParts[1] ?? '',
-            'role' => $role === 'super_admin' ? 'admin' : $role,
+            'role' => $role === 'super_admin' ? 'admin' : ($role === 'hr_manager' ? 'hr' : $role),
+            'permissions' => $permissions,
+            'company_role' => $companyRolePayload,
+            'employee_portal_paths' => $employeePortalPaths,
             'avatar' => $user->avatar,
             'company' => $user->company_name,
             'phone' => $user->phone,

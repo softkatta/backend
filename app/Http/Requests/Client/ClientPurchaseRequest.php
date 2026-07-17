@@ -26,6 +26,7 @@ class ClientPurchaseRequest extends FormRequest
                 ),
             ],
             'payment_gateway' => ['nullable', 'string', 'in:razorpay,stripe,payu,cashfree'],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
         ];
     }
 }

@@ -15,9 +15,10 @@ class ProductController extends BaseApiController
     {
         $products = Product::with([
             'category',
+            'features' => fn ($q) => $q->orderBy('sort_order'),
             'plans' => fn ($q) => $q->where('is_active', true),
             'screenshots',
-            'videos',
+            'videos' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')->limit(1),
         ])
             ->where('is_active', true)
             ->orderBy('sort_order')
@@ -28,7 +29,13 @@ class ProductController extends BaseApiController
 
     public function show(string $slug): JsonResponse
     {
-        $product = Product::with(['category', 'features', 'screenshots', 'videos', 'plans'])
+        $product = Product::with([
+            'category',
+            'features' => fn ($q) => $q->orderBy('sort_order'),
+            'screenshots',
+            'videos',
+            'plans',
+        ])
             ->where('slug', $slug)
             ->where('is_active', true)
             ->firstOrFail();

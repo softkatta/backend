@@ -2,14 +2,17 @@
 
 namespace Database\Seeders;
 
+use App\Services\EmployeeRoleService;
+use App\Services\HrRoleService;
+use App\Services\RolePermissionService;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
 
 class RoleSeeder extends Seeder
 {
     public function run(): void
     {
-        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
-        Role::firstOrCreate(['name' => 'client', 'guard_name' => 'web']);
+        app(RolePermissionService::class)->syncCatalog();
+        app(EmployeeRoleService::class)->syncAllEmployeeUsers();
+        app(HrRoleService::class)->syncAllHrUsers();
     }
 }

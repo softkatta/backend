@@ -12,6 +12,15 @@ class RegisterRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $phone = $this->input('phone');
+
+        if ($phone === null || $phone === '') {
+            $this->merge(['phone' => null]);
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -25,6 +34,21 @@ class RegisterRequest extends FormRequest
             'phone' => ['nullable', 'string', 'regex:/^\d{10}$/'],
             'company' => ['nullable', 'string', 'max:255'],
             'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'email.unique' => 'This email is already registered. Please sign in instead.',
+            'phone.regex' => 'Phone must be a 10-digit mobile number.',
+            'avatar.required' => 'Please upload a profile photo.',
+            'avatar.image' => 'Profile photo must be a valid image (JPG, PNG, or WEBP).',
+            'avatar.mimes' => 'Profile photo must be JPG, PNG, or WEBP.',
+            'password' => 'Password must be at least 8 characters.',
         ];
     }
 }

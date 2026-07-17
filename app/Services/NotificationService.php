@@ -8,19 +8,32 @@ use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class NotificationService
 {
     public function __construct(
         private readonly IntegrationCredentialService $integrations,
-        private readonly InvoiceProfileService $profile,
+        private readonly SmtpMailService $smtpMail,
+        private readonly MailTemplateService $templates,
     ) {
+    }
+
+    /**
+     * @return array<int, NotificationChannel>
+     */
+    public static function allChannels(): array
+    {
+        return [
+            NotificationChannel::Email,
+            NotificationChannel::Whatsapp,
+            NotificationChannel::InApp,
+        ];
     }
 
     /**
      * @param  array<int, NotificationChannel>  $channels
      * @param  array<string, mixed>  $data
+     * @param  array<string, string>  $emailDetails
      */
     public function send(
         User $user,
@@ -28,44 +41,31 @@ class NotificationService
         string $title,
         string $message,
         array $channels = [NotificationChannel::InApp],
-        array $data = []
+        array $data = [],
+        array $emailDetails = [],
     ): void {
         foreach ($channels as $channel) {
             match ($channel) {
-                NotificationChannel::Email => $this->sendEmail($user, $title, $message),
+                NotificationChannel::Email => $this->sendEmail($user, $title, $message, $emailDetails),
                 NotificationChannel::Whatsapp => $this->sendWhatsapp($user, $message),
                 NotificationChannel::InApp => $this->createInApp($user, $type, $title, $message, $data),
             };
         }
     }
 
-    protected function sendEmail(User $user, string $title, string $message): void
+    /**
+     * @param  array<string, string>  $details
+     */
+    protected function sendEmail(User $user, string $title, string $message, array $details = []): void
     {
-        $smtp = $this->integrations->emailSmtp();
-
         try {
-            if ($smtp) {
-                config([
-                    'mail.default' => 'smtp',
-                    'mail.mailers.smtp.host' => $smtp['host'],
-                    'mail.mailers.smtp.port' => $smtp['port'],
-                    'mail.mailers.smtp.username' => $smtp['username'],
-                    'mail.mailers.smtp.password' => $smtp['password'],
-                    'mail.mailers.smtp.encryption' => $smtp['encryption'],
-                    'mail.from.address' => $smtp['from_address'],
-                    'mail.from.name' => $smtp['from_name'],
-                ]);
-            }
-
-            Mail::raw($message, function ($mail) use ($user, $title, $smtp): void {
-                $companyName = $this->profile->company()['name'] ?? 'SoftKatta';
-                $mail->to($user->email)
-                    ->subject("[{$companyName}] {$title}");
-
-                if ($smtp) {
-                    $mail->from($smtp['from_address'], $smtp['from_name']);
-                }
-            });
+            $this->smtpMail->send(
+                $user->email,
+                $this->templates->formatSubject($title),
+                $message,
+                $title,
+                $details,
+            );
         } catch (\Throwable $e) {
             Log::warning('SoftKatta email notification failed', [
                 'user_id' => $user->id,

@@ -53,7 +53,9 @@ class LicenseService
         $integration = $product?->productIntegration;
 
         return [
+            'SOFTKATTA_COMPANY_API_URL' => config('softkatta.company_api_url'),
             'SOFTKATTA_API_URL' => config('softkatta.central_api_url'),
+            'SOFTKATTA_PUBLIC_API_KEY' => $integration?->public_api_key ?? '',
             'SOFTKATTA_API_KEY' => $integration?->public_api_key ?? $license->license_key,
             'SOFTKATTA_LICENSE_KEY' => $license->license_key,
             'SOFTKATTA_PRODUCT_SLUG' => $product?->installerSlug() ?? '',
@@ -238,6 +240,9 @@ class LicenseService
         $license->update(['allowed_domains' => []]);
         $this->recordHistory($license, 'domains_reset', [], $actorId);
 
+        // Domain transfer requires re-activation — revoke all install tokens.
+        app(CompanyLicenseService::class)->revokeAllInstallations($license, $actorId);
+
         return $license->fresh();
     }
 
@@ -245,6 +250,7 @@ class LicenseService
     {
         $license->update(['force_logout_at' => now()]);
         $this->recordHistory($license, 'force_logout', [], $actorId);
+        app(CompanyLicenseService::class)->revokeAllInstallations($license, $actorId);
 
         return $license->fresh();
     }

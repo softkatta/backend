@@ -7,6 +7,7 @@ use App\Enums\NotificationChannel;
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
+use App\Models\Coupon;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Payment;
@@ -28,6 +29,7 @@ class PurchaseService
         protected PaymentService $paymentService,
         protected InvoiceProfileService $invoiceProfile,
         protected LicenseService $licenseService,
+        protected CouponService $couponService,
     ) {}
 
     /**
@@ -118,7 +120,7 @@ class PurchaseService
                 'subscription_created',
                 'Welcome to SoftKatta Solutions',
                 "Your subscription to {$product->name} ({$plan->name}) has been created successfully.",
-                [NotificationChannel::Email, NotificationChannel::InApp],
+                [NotificationChannel::Email, NotificationChannel::Whatsapp, NotificationChannel::InApp],
                 ['product_id' => $product->id, 'plan_id' => $plan->id]
             );
 
@@ -131,9 +133,9 @@ class PurchaseService
      *
      * @return array<string, mixed>
      */
-    public function purchaseForExistingUser(User $user, Product $product, Plan $plan, ?string $gateway = null): array
+    public function purchaseForExistingUser(User $user, Product $product, Plan $plan, ?string $gateway = null, ?string $couponCode = null): array
     {
-        return DB::transaction(function () use ($user, $product, $plan, $gateway) {
+        return DB::transaction(function () use ($user, $product, $plan, $gateway, $couponCode) {
             if (! $user->tenant_id) {
                 $tenant = $this->tenantService->create([
                     'name' => $user->company_name ?? $user->name.' Workspace',
@@ -144,12 +146,37 @@ class PurchaseService
             $user->refresh();
 
             $amount = (float) $plan->price;
-            $requiresPayment = ! $product->has_free_trial && $amount > 0;
             $gatewayName = $gateway ?? 'razorpay';
 
+            $couponContext = $this->resolveCouponContext($user, $couponCode, [[
+                'product' => $product,
+                'plan' => $plan,
+                'amount' => $amount,
+            ]]);
+            $lineDiscount = (float) ($couponContext['line_discounts'][0] ?? 0);
+            $netAmount = max(0, $amount - $lineDiscount);
+            $requiresPayment = ! $product->has_free_trial && $netAmount > 0;
+
             $subscription = $this->createSubscription($user, $product, $plan, $requiresPayment);
-            $order = $this->createOrder($user, $product, $plan, $requiresPayment, $gatewayName);
+            $order = $this->createOrder(
+                $user,
+                $product,
+                $plan,
+                $requiresPayment,
+                $gatewayName,
+                $lineDiscount,
+                $couponContext['coupon'],
+            );
             $invoice = $this->invoiceService->generateFromOrder($order, $subscription);
+
+            if ($couponContext['coupon'] && $lineDiscount > 0) {
+                $this->couponService->recordRedemption(
+                    $couponContext['coupon'],
+                    $user,
+                    $order,
+                    $lineDiscount,
+                );
+            }
 
             if ($requiresPayment) {
                 $invoice->update(['status' => InvoiceStatus::Sent]);
@@ -165,7 +192,7 @@ class PurchaseService
                 $requiresPayment
                     ? "Your subscription to {$product->name} ({$plan->name}) is pending payment."
                     : "Your subscription to {$product->name} ({$plan->name}) is now active.",
-                [NotificationChannel::Email, NotificationChannel::InApp],
+                [NotificationChannel::Email, NotificationChannel::Whatsapp, NotificationChannel::InApp],
                 ['product_id' => $product->id, 'plan_id' => $plan->id]
             );
 
@@ -182,6 +209,135 @@ class PurchaseService
                 $result['payment'] = $checkout['payment'];
                 $result['checkout'] = $checkout['checkout'];
             }
+
+            return $result;
+        });
+    }
+
+    /**
+     * Purchase multiple products for an authenticated client in one checkout.
+     *
+     * @param  list<array{product: Product, plan: Plan}>  $lineItems
+     * @return array<string, mixed>
+     */
+    public function purchaseBatchForExistingUser(User $user, array $lineItems, ?string $gateway = null, ?string $couponCode = null): array
+    {
+        return DB::transaction(function () use ($user, $lineItems, $gateway, $couponCode) {
+            if (! $user->tenant_id) {
+                $tenant = $this->tenantService->create([
+                    'name' => $user->company_name ?? $user->name.' Workspace',
+                ], $user);
+                $user->update(['tenant_id' => $tenant->id]);
+            }
+
+            $user->refresh();
+
+            $gatewayName = $gateway ?? 'razorpay';
+            $entries = [];
+            $paidOrders = [];
+
+            $pricedLineItems = collect($lineItems)->map(function (array $lineItem): array {
+                $product = $lineItem['product'];
+                $plan = $lineItem['plan'];
+
+                return [
+                    'product' => $product,
+                    'plan' => $plan,
+                    'amount' => (float) $plan->price,
+                ];
+            })->values()->all();
+
+            $couponContext = $this->resolveCouponContext($user, $couponCode, $pricedLineItems);
+
+            foreach ($pricedLineItems as $index => $lineItem) {
+                $product = $lineItem['product'];
+                $plan = $lineItem['plan'];
+                $amount = (float) $lineItem['amount'];
+                $lineDiscount = (float) ($couponContext['line_discounts'][$index] ?? 0);
+                $netAmount = max(0, $amount - $lineDiscount);
+                $requiresPayment = ! $product->has_free_trial && $netAmount > 0;
+
+                $subscription = $this->createSubscription($user, $product, $plan, $requiresPayment);
+                $order = $this->createOrder(
+                    $user,
+                    $product,
+                    $plan,
+                    $requiresPayment,
+                    $gatewayName,
+                    $lineDiscount,
+                    $couponContext['coupon'],
+                );
+                $invoice = $this->invoiceService->generateFromOrder($order, $subscription);
+
+                if ($requiresPayment) {
+                    $invoice->update(['status' => InvoiceStatus::Sent]);
+                    $paidOrders[] = $order;
+                } else {
+                    $this->invoiceService->markAsPaid($invoice);
+                    $this->issueLicenseIfEligible($subscription);
+                }
+
+                $this->notificationService->send(
+                    $user,
+                    'subscription_created',
+                    $requiresPayment ? 'Subscription created' : 'Subscription activated',
+                    $requiresPayment
+                        ? "Your subscription to {$product->name} ({$plan->name}) is pending payment."
+                        : "Your subscription to {$product->name} ({$plan->name}) is now active.",
+                    [NotificationChannel::Email, NotificationChannel::Whatsapp, NotificationChannel::InApp],
+                    ['product_id' => $product->id, 'plan_id' => $plan->id]
+                );
+
+                $entries[] = [
+                    'requires_payment' => $requiresPayment,
+                    'subscription' => $subscription->fresh(),
+                    'order' => $order->fresh(),
+                    'invoice' => $invoice->fresh(),
+                    'product' => $product,
+                ];
+            }
+
+            if ($couponContext['coupon'] && ($couponContext['discount_amount'] ?? 0) > 0) {
+                $this->couponService->recordRedemption(
+                    $couponContext['coupon'],
+                    $user,
+                    $entries[0]['order'],
+                    (float) $couponContext['discount_amount'],
+                );
+            }
+
+            $orders = collect($entries)->pluck('order')->values()->all();
+            $invoices = collect($entries)->pluck('invoice')->values()->all();
+            $subscriptions = collect($entries)->pluck('subscription')->values()->all();
+            $primaryOrder = $entries[0]['order'];
+
+            $result = [
+                'requires_payment' => $paidOrders !== [],
+                'skip_payment_reason' => $paidOrders === [] ? 'no_payment_required' : null,
+                'orders' => $orders,
+                'invoices' => $invoices,
+                'subscriptions' => $subscriptions,
+                'order' => $primaryOrder,
+                'invoice' => $entries[0]['invoice'],
+                'subscription' => $entries[0]['subscription'],
+                'item_count' => count($entries),
+            ];
+
+            if ($paidOrders === []) {
+                return $result;
+            }
+
+            $combinedTotal = collect($paidOrders)->sum(fn (Order $order) => (float) $order->total_amount);
+            $relatedOrderIds = collect($paidOrders)->pluck('id')->map(fn ($id) => (string) $id)->values()->all();
+            $primaryPaidOrder = $paidOrders[0];
+
+            $checkout = $this->paymentService->initiate($primaryPaidOrder->fresh(['invoice']), $gatewayName, [
+                'amount' => $combinedTotal,
+                'related_order_ids' => $relatedOrderIds,
+            ]);
+
+            $result['payment'] = $checkout['payment'];
+            $result['checkout'] = $checkout['checkout'];
 
             return $result;
         });
@@ -215,36 +371,66 @@ class PurchaseService
         return DB::transaction(function () use ($payment, $payload) {
             $payment->refresh();
             $order = $payment->order()->with('invoice')->firstOrFail();
+            $relatedOrderIds = $this->relatedOrderIdsFromPayment($payment);
 
-            $order->update([
-                'status' => 'completed',
-                'payment_id' => $payload['razorpay_payment_id'] ?? $payment->transaction_id,
-            ]);
-
-            if ($order->invoice) {
-                $this->invoiceService->markAsPaid($order->invoice);
-            }
-
-            $subscription = Subscription::query()
+            $ordersToComplete = Order::query()
                 ->where('user_id', $order->user_id)
-                ->where('product_id', $order->product_id)
-                ->where('plan_id', $order->plan_id)
-                ->latest('id')
-                ->first();
+                ->whereIn('id', $relatedOrderIds)
+                ->with('invoice')
+                ->get();
 
-            if ($subscription) {
-                $subscription->update(['status' => SubscriptionStatus::Active]);
-                $this->issueLicenseIfEligible($subscription);
+            foreach ($ordersToComplete as $relatedOrder) {
+                $relatedOrder->update([
+                    'status' => 'completed',
+                    'payment_id' => $payload['razorpay_payment_id'] ?? $payment->transaction_id,
+                ]);
+
+                if ($relatedOrder->invoice) {
+                    $this->invoiceService->markAsPaid($relatedOrder->invoice);
+                }
+
+                $subscription = Subscription::query()
+                    ->where('user_id', $relatedOrder->user_id)
+                    ->where('product_id', $relatedOrder->product_id)
+                    ->where('plan_id', $relatedOrder->plan_id)
+                    ->latest('id')
+                    ->first();
+
+                if ($subscription) {
+                    $subscription->update(['status' => SubscriptionStatus::Active]);
+                    $this->issueLicenseIfEligible($subscription);
+                }
             }
 
             return [
                 'payment' => $payment->fresh(),
                 'order' => $order->fresh(['invoice']),
                 'invoice' => $order->invoice?->fresh(),
-                'subscription' => $subscription?->fresh(),
+                'subscription' => Subscription::query()
+                    ->where('user_id', $order->user_id)
+                    ->where('product_id', $order->product_id)
+                    ->where('plan_id', $order->plan_id)
+                    ->latest('id')
+                    ->first()?->fresh(),
+                'orders' => $ordersToComplete->map->fresh(['invoice'])->values()->all(),
                 'already_completed' => false,
             ];
         });
+    }
+
+    /**
+     * @return list<int|string>
+     */
+    protected function relatedOrderIdsFromPayment(Payment $payment): array
+    {
+        $gatewayResponse = is_array($payment->gateway_response) ? $payment->gateway_response : [];
+        $related = $gatewayResponse['related_order_ids'] ?? [];
+
+        if (! is_array($related) || $related === []) {
+            return [$payment->order_id];
+        }
+
+        return array_values(array_unique(array_merge([$payment->order_id], $related)));
     }
 
     protected function issueLicenseIfEligible(Subscription $subscription): void
@@ -284,9 +470,18 @@ class PurchaseService
         ]);
     }
 
-    protected function createOrder(User $user, Product $product, Plan $plan, bool $requiresPayment, string $gateway): Order
-    {
-        $amount = (float) $plan->price;
+    protected function createOrder(
+        User $user,
+        Product $product,
+        Plan $plan,
+        bool $requiresPayment,
+        string $gateway,
+        float $discountAmount = 0,
+        ?Coupon $coupon = null,
+    ): Order {
+        $grossAmount = (float) $plan->price;
+        $discountAmount = max(0, min($discountAmount, $grossAmount));
+        $amount = round($grossAmount - $discountAmount, 2);
         $taxRate = $this->invoiceProfile->gstRate();
         $taxAmount = round($amount * ($taxRate / 100), 2);
         $totalAmount = $amount + $taxAmount;
@@ -296,12 +491,38 @@ class PurchaseService
             'user_id' => $user->id,
             'product_id' => $product->id,
             'plan_id' => $plan->id,
+            'coupon_id' => $coupon?->id,
+            'coupon_code' => $coupon?->code,
             'order_number' => 'SK-ORD-'.strtoupper(Str::random(10)),
             'amount' => $amount,
+            'discount_amount' => $discountAmount,
             'tax_amount' => $taxAmount,
             'total_amount' => $totalAmount,
             'status' => $requiresPayment ? 'pending' : 'completed',
             'payment_gateway' => $gateway,
         ]);
+    }
+
+    /**
+     * @param  list<array{product: Product, plan: Plan, amount: float}>  $lineItems
+     * @return array{coupon: ?Coupon, discount_amount: float, line_discounts: list<float>}
+     */
+    protected function resolveCouponContext(User $user, ?string $couponCode, array $lineItems): array
+    {
+        if (! $couponCode) {
+            return [
+                'coupon' => null,
+                'discount_amount' => 0,
+                'line_discounts' => array_fill(0, count($lineItems), 0.0),
+            ];
+        }
+
+        $result = $this->couponService->validateForCheckout($user, $couponCode, $lineItems);
+
+        return [
+            'coupon' => $result['coupon'],
+            'discount_amount' => $result['discount_amount'],
+            'line_discounts' => $result['line_discounts'],
+        ];
     }
 }

@@ -20,10 +20,11 @@ class RazorpayGateway extends AbstractPaymentGateway
         $creds = app(IntegrationCredentialService::class)->razorpay();
 
         if (! $creds) {
-            return $this->stubResponse($order, 'initiate');
+            return $this->stubResponse($order, 'initiate', $payload);
         }
 
-        $amountPaise = (int) round((float) $order->total_amount * 100);
+        $amount = (float) ($payload['amount'] ?? $order->total_amount);
+        $amountPaise = (int) round($amount * 100);
 
         $client = Http::withBasicAuth($creds['key_id'], $creds['key_secret']);
 
@@ -52,7 +53,7 @@ class RazorpayGateway extends AbstractPaymentGateway
             'gateway' => $this->getName(),
             'razorpay_order_id' => $data['id'] ?? null,
             'razorpay_key_id' => $creds['key_id'],
-            'amount' => (float) $order->total_amount,
+            'amount' => $amount,
             'amount_paise' => $amountPaise,
             'currency' => 'INR',
             'transaction_id' => $data['id'] ?? null,

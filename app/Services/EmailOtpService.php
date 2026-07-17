@@ -12,6 +12,7 @@ class EmailOtpService
 
     public function __construct(
         private readonly SmtpMailService $smtpMail,
+        private readonly MailTemplateService $templates,
     ) {}
 
     public function send(User $user, string $purpose): void
@@ -30,16 +31,18 @@ class EmailOtpService
         Cache::put($this->cooldownCacheKey($user, $purpose), $cooldownUntil->getTimestamp(), $cooldownUntil);
 
         try {
-            $appName = config('app.name', 'SoftKatta');
+            $appName = $this->templates->displayName();
+            $message = sprintf(
+                'Your %s verification code is shown below. Enter it to continue.',
+                $appName,
+            );
 
-            $this->smtpMail->send(
+            $this->smtpMail->sendOtp(
                 $user->email,
-                "[{$appName}] Your verification code",
-                sprintf(
-                    "Your %s verification code is: %s\n\nThis code expires in 10 minutes. If you did not request this, ignore this email.",
-                    $appName,
-                    $code,
-                ),
+                $this->templates->formatSubject('Your verification code'),
+                'Your verification code',
+                $code,
+                $message,
             );
         } catch (\Throwable $e) {
             Cache::forget($this->cacheKey($user, $purpose));

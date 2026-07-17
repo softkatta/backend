@@ -22,6 +22,10 @@ class SecurityService
 
     public function isDemoAccount(User $user): bool
     {
+        if ($user->isSuperAdmin()) {
+            return false;
+        }
+
         $demoEmail = $this->demoAccountEmail();
 
         if ($demoEmail === '') {
@@ -40,6 +44,7 @@ class SecurityService
         }
 
         $tenantId = User::query()
+            ->where('role', UserRole::Client)
             ->whereRaw('LOWER(email) = ?', [$demoEmail])
             ->value('tenant_id');
 
@@ -59,7 +64,7 @@ class SecurityService
 
         $demoTenantId = $this->demoTenantId();
         if (! $demoTenantId) {
-            return $mode === 'demo' ? $query->whereRaw('1 = 0') : $query;
+            return $query;
         }
 
         if ($mode === 'demo') {
@@ -89,8 +94,21 @@ class SecurityService
         return $tenantId !== $demoTenantId;
     }
 
+    public function twoFactorLoginEnabled(): bool
+    {
+        return $this->boolSetting('two_factor_login_enabled');
+    }
+
     public function requiresTwoFactorAtLogin(User $user): bool
     {
+        if (! $this->twoFactorLoginEnabled()) {
+            return false;
+        }
+
+        if ($user->isEmployee() || $user->isHrManager()) {
+            return false;
+        }
+
         if ($this->isDemoAccount($user) && ! $this->demoAccountTwoFactorEnabled()) {
             return false;
         }
@@ -98,19 +116,40 @@ class SecurityService
         return $user->requiresTwoFactorAtLogin();
     }
 
+    public function shouldAutoEnableEmailTwoFactorAtLogin(User $user): bool
+    {
+        if (! $this->twoFactorLoginEnabled()) {
+            return false;
+        }
+
+        if ($user->isEmployee() || $user->isHrManager()) {
+            return false;
+        }
+
+        if ($user->requiresTwoFactorAtLogin()) {
+            return false;
+        }
+
+        if ($this->isDemoAccount($user) && ! $this->demoAccountTwoFactorEnabled()) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function allowEmailOtp(): bool
     {
-        return true;
+        return $this->boolSetting('allow_email_otp', true);
     }
 
     public function allowAuthenticator(): bool
     {
-        return true;
+        return $this->boolSetting('allow_authenticator', true);
     }
 
     public function allowPasskeys(): bool
     {
-        return true;
+        return $this->boolSetting('allow_passkeys', true);
     }
 
     public function enforceTwoFactorForAll(): bool
@@ -130,7 +169,7 @@ class SecurityService
 
     public function enforceTwoFactorForClients(): bool
     {
-        return true;
+        return $this->boolSetting('enforce_2fa_clients');
     }
 
     /**
@@ -176,6 +215,10 @@ class SecurityService
 
     public function enforceTwoFactorForUser(User $user): bool
     {
+        if (! $this->twoFactorLoginEnabled()) {
+            return false;
+        }
+
         if ($this->isDemoAccount($user)) {
             return $this->demoAccountTwoFactorEnabled();
         }
@@ -284,13 +327,14 @@ class SecurityService
     public function platformPolicy(): array
     {
         return [
+            'two_factor_login_enabled' => $this->twoFactorLoginEnabled(),
             'allow_email_otp' => $this->allowEmailOtp(),
             'allow_authenticator' => $this->allowAuthenticator(),
             'allow_passkeys' => $this->allowPasskeys(),
             'enforce_2fa_all' => $this->enforceTwoFactorForAll(),
             'enforce_2fa_roles' => $this->enforcedRoles(),
             'enforce_2fa_admins' => $this->enforceTwoFactorForAdmins(),
-            'enforce_2fa_clients' => true,
+            'enforce_2fa_clients' => $this->enforceTwoFactorForClients(),
             'allow_users_disable_2fa' => $this->allowUsersDisableTwoFactor(),
             'login_2fa_priority' => $this->loginMethodPriority(),
             'demo_account_email' => $this->demoAccountEmail(),

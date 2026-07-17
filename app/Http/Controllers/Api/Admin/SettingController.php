@@ -25,6 +25,7 @@ class SettingController extends BaseApiController
     public function store(StoreSettingRequest $request): JsonResponse
     {
         $setting = Setting::create($request->validated());
+        app(InvoiceProfileService::class)->clearCache();
 
         return $this->success($setting, 'Setting created.', 201);
     }
@@ -37,6 +38,7 @@ class SettingController extends BaseApiController
         ]);
 
         $setting->update($data);
+        app(InvoiceProfileService::class)->clearCache();
 
         return $this->success($setting->fresh(), 'Setting updated.');
     }
@@ -71,6 +73,8 @@ class SettingController extends BaseApiController
         if ($startSetting && ($startSetting['value'] ?? '') !== '') {
             app(InvoiceProfileService::class)->syncInvoiceNumberStart((int) $startSetting['value']);
         }
+
+        app(InvoiceProfileService::class)->clearCache();
 
         return $this->success(null, 'Settings saved.');
     }

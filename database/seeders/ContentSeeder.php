@@ -5,9 +5,7 @@ namespace Database\Seeders;
 use App\Models\Faq;
 use App\Models\HeroSlide;
 use App\Models\LicenseKey;
-use App\Models\Plan;
 use App\Models\Product;
-use App\Models\ProductCategory;
 use App\Models\Service;
 use App\Models\Subscription;
 use App\Models\Tenant;
@@ -15,6 +13,7 @@ use App\Models\Testimonial;
 use App\Models\User;
 use App\Services\LicenseService;
 use App\Services\ProductIntegrationService;
+use App\Services\ProductPlanSeedService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -22,135 +21,7 @@ class ContentSeeder extends Seeder
 {
     public function run(): void
     {
-        // ============================================================
-        // CATEGORIES
-        // ============================================================
-        $erpCategory = ProductCategory::firstOrCreate(
-            ['slug' => 'education-erp'],
-            [
-                'name' => 'Education ERP',
-                'description' => 'Student management and institutional operations software.',
-                'icon' => 'graduation-cap',
-                'is_active' => true,
-                'sort_order' => 1,
-            ],
-        );
-
-        $managementCategory = ProductCategory::firstOrCreate(
-            ['slug' => 'management'],
-            [
-                'name' => 'Management Systems',
-                'description' => 'Specialized management solutions for various industries.',
-                'icon' => 'briefcase',
-                'is_active' => true,
-                'sort_order' => 2,
-            ],
-        );
-
-        // ============================================================
-        // PRODUCTS
-        // ============================================================
-        
-        // Study Point ERP
-        $studyPointErp = Product::firstOrCreate(
-            ['slug' => 'study-point-erp'],
-            [
-                'category_id' => $erpCategory->id,
-                'name' => 'Study Point ERP',
-                'description' => 'Complete student information system and academic management for educational institutions.',
-                'overview' => 'Manage admissions, attendance, fees, exams, and reports in one platform.',
-                'is_active' => true,
-                'has_free_trial' => true,
-                'trial_days' => 14,
-                'sort_order' => 1,
-                'meta' => [
-                    'tagline' => 'All-in-one platform for educational institutions',
-                    'current_version' => '3.5.2',
-                    'installer_slug' => 'study-point',
-                ],
-            ],
-        );
-
-        // Coaching ERP
-        $coachingErp = Product::firstOrCreate(
-            ['slug' => 'coaching-erp'],
-            [
-                'category_id' => $erpCategory->id,
-                'name' => 'Coaching ERP',
-                'description' => 'Student batches, faculty assignments, doubt sessions, and performance tracking.',
-                'overview' => 'Designed specifically for coaching centers and online tutoring platforms.',
-                'is_active' => true,
-                'has_free_trial' => true,
-                'trial_days' => 14,
-                'sort_order' => 2,
-                'meta' => [
-                    'tagline' => 'Coaching center management made easy',
-                    'current_version' => '2.8.1',
-                ],
-            ],
-        );
-
-        // Library Management System
-        $libraryMgmt = Product::firstOrCreate(
-            ['slug' => 'library-management-system'],
-            [
-                'category_id' => $managementCategory->id,
-                'name' => 'Library Management System',
-                'description' => 'Book catalog, member management, issue/return tracking, and fine management.',
-                'overview' => 'Digital solution for library and media center operations.',
-                'is_active' => true,
-                'has_free_trial' => true,
-                'trial_days' => 30,
-                'sort_order' => 3,
-                'meta' => [
-                    'tagline' => 'Modernize your library operations',
-                    'current_version' => '1.9.5',
-                ],
-            ],
-        );
-
-        // Gym Management System
-        $gymMgmt = Product::firstOrCreate(
-            ['slug' => 'gym-management-system'],
-            [
-                'category_id' => $managementCategory->id,
-                'name' => 'Gym Management System',
-                'description' => 'Member profiles, memberships, attendance, trainer assignments, and billing.',
-                'overview' => 'Complete solution for fitness centers and gyms.',
-                'is_active' => true,
-                'has_free_trial' => true,
-                'trial_days' => 14,
-                'sort_order' => 4,
-                'meta' => [
-                    'tagline' => 'Gym management simplified',
-                    'current_version' => '2.1.0',
-                ],
-            ],
-        );
-
-        // ============================================================
-        // PLANS FOR STUDY POINT ERP
-        // ============================================================
-        $this->createPlansForStudyPoint($studyPointErp);
-
-        // ============================================================
-        // PLANS FOR COACHING ERP
-        // ============================================================
-        $this->createPlansForCoachingErp($coachingErp);
-
-        // ============================================================
-        // PLANS FOR LIBRARY MANAGEMENT
-        // ============================================================
-        $this->createPlansForLibrary($libraryMgmt);
-
-        // ============================================================
-        // PLANS FOR GYM MANAGEMENT
-        // ============================================================
-        $this->createPlansForGym($gymMgmt);
-
-        // ============================================================
-        // SAMPLE CUSTOMERS WITH SUBSCRIPTIONS & LICENSE KEYS
-        // ============================================================
+        $this->seedPlansForCanonicalProducts();
         $this->createSampleCustomersWithSubscriptions();
 
         // ============================================================
@@ -327,253 +198,9 @@ class ContentSeeder extends Seeder
     // Helper Methods
     // ============================================================
 
-    private function createPlansForStudyPoint(Product $product): void
+    private function seedPlansForCanonicalProducts(): void
     {
-        $plans = [
-            [
-                'name' => 'Basic',
-                'slug' => 'study-point-basic',
-                'description' => 'For small schools and institutes',
-                'price' => 2999,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 14,
-                'billing_cycle' => 'monthly',
-                'is_popular' => false,
-                'limits' => [
-                    'max_branches' => 1,
-                    'max_staff' => 20,
-                    'max_students' => 500,
-                    'max_storage' => 10,
-                    'enabled_modules' => ['students', 'attendance', 'fees'],
-                ],
-            ],
-            [
-                'name' => 'Professional',
-                'slug' => 'study-point-pro',
-                'description' => 'For medium-sized schools',
-                'price' => 5999,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 14,
-                'billing_cycle' => 'monthly',
-                'is_popular' => true,
-                'limits' => [
-                    'max_branches' => 3,
-                    'max_staff' => 100,
-                    'max_students' => 2000,
-                    'max_storage' => 50,
-                    'enabled_modules' => ['students', 'attendance', 'fees', 'batches', 'examinations'],
-                ],
-            ],
-            [
-                'name' => 'Enterprise',
-                'slug' => 'study-point-enterprise',
-                'description' => 'For large institutions',
-                'price' => 12999,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 14,
-                'billing_cycle' => 'monthly',
-                'is_popular' => false,
-                'limits' => [
-                    'max_branches' => 10,
-                    'max_staff' => 500,
-                    'max_students' => 10000,
-                    'max_storage' => 500,
-                    'enabled_modules' => ['students', 'attendance', 'fees', 'batches', 'examinations', 'library', 'reports'],
-                ],
-            ],
-        ];
-
-        foreach ($plans as $plan) {
-            Plan::firstOrCreate(
-                ['product_id' => $product->id, 'slug' => $plan['slug']],
-                $plan,
-            );
-        }
-
-        // Yearly plans at 20% discount
-        $yearly = [
-            'study-point-basic-yearly' => ['name' => 'Basic (Yearly)', 'price' => 2999 * 12, 'discount' => 0.20],
-            'study-point-pro-yearly' => ['name' => 'Professional (Yearly)', 'price' => 5999 * 12, 'discount' => 0.20],
-            'study-point-enterprise-yearly' => ['name' => 'Enterprise (Yearly)', 'price' => 12999 * 12, 'discount' => 0.20],
-        ];
-
-        foreach ($yearly as $slug => $yearly_plan) {
-            Plan::firstOrCreate(
-                ['product_id' => $product->id, 'slug' => $slug],
-                [
-                    'name' => $yearly_plan['name'],
-                    'description' => 'Get 2 months free',
-                    'price' => $yearly_plan['price'],
-                    'discount' => $yearly_plan['discount'] * 100,
-                    'gst_rate' => 18,
-                    'currency' => 'INR',
-                    'trial_days' => 14,
-                    'billing_cycle' => 'yearly',
-                    'is_popular' => false,
-                    'features' => [],
-                    'limits' => [],
-                ],
-            );
-        }
-    }
-
-    private function createPlansForCoachingErp(Product $product): void
-    {
-        $plans = [
-            [
-                'name' => 'Starter',
-                'slug' => 'coaching-starter',
-                'description' => 'Single center coaching institutes',
-                'price' => 1999,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 14,
-                'billing_cycle' => 'monthly',
-                'is_popular' => true,
-                'limits' => [
-                    'max_branches' => 1,
-                    'max_staff' => 15,
-                    'max_students' => 300,
-                    'max_storage' => 5,
-                    'enabled_modules' => ['students', 'batches', 'attendance', 'fees'],
-                ],
-            ],
-            [
-                'name' => 'Growth',
-                'slug' => 'coaching-growth',
-                'description' => 'Multi-center coaching chains',
-                'price' => 4999,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 14,
-                'billing_cycle' => 'monthly',
-                'is_popular' => false,
-                'limits' => [
-                    'max_branches' => 5,
-                    'max_staff' => 100,
-                    'max_students' => 2000,
-                    'max_storage' => 50,
-                    'enabled_modules' => ['students', 'batches', 'attendance', 'fees', 'tests', 'reports'],
-                ],
-            ],
-        ];
-
-        foreach ($plans as $plan) {
-            Plan::firstOrCreate(
-                ['product_id' => $product->id, 'slug' => $plan['slug']],
-                $plan,
-            );
-        }
-    }
-
-    private function createPlansForLibrary(Product $product): void
-    {
-        $plans = [
-            [
-                'name' => 'Basic',
-                'slug' => 'library-basic',
-                'description' => 'Small libraries',
-                'price' => 999,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 30,
-                'billing_cycle' => 'monthly',
-                'is_popular' => false,
-                'limits' => [
-                    'max_branches' => 1,
-                    'max_staff' => 2,
-                    'max_students' => 500,
-                    'max_storage' => 5,
-                    'enabled_modules' => ['books', 'members', 'issue_return'],
-                ],
-            ],
-            [
-                'name' => 'Professional',
-                'slug' => 'library-pro',
-                'description' => 'Institutional libraries',
-                'price' => 2499,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 30,
-                'billing_cycle' => 'monthly',
-                'is_popular' => true,
-                'limits' => [
-                    'max_branches' => 3,
-                    'max_staff' => 10,
-                    'max_students' => 5000,
-                    'max_storage' => 50,
-                    'enabled_modules' => ['books', 'members', 'issue_return', 'fines', 'reports'],
-                ],
-            ],
-        ];
-
-        foreach ($plans as $plan) {
-            Plan::firstOrCreate(
-                ['product_id' => $product->id, 'slug' => $plan['slug']],
-                $plan,
-            );
-        }
-    }
-
-    private function createPlansForGym(Product $product): void
-    {
-        $plans = [
-            [
-                'name' => 'Starter',
-                'slug' => 'gym-starter',
-                'description' => 'Single location gyms',
-                'price' => 1499,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 14,
-                'billing_cycle' => 'monthly',
-                'is_popular' => true,
-                'limits' => [
-                    'max_branches' => 1,
-                    'max_staff' => 10,
-                    'max_students' => 200,
-                    'max_storage' => 5,
-                    'enabled_modules' => ['members', 'memberships', 'attendance', 'fees'],
-                ],
-            ],
-            [
-                'name' => 'Professional',
-                'slug' => 'gym-pro',
-                'description' => 'Multi-gym chains',
-                'price' => 3999,
-                'discount' => 0,
-                'gst_rate' => 18,
-                'currency' => 'INR',
-                'trial_days' => 14,
-                'billing_cycle' => 'monthly',
-                'is_popular' => false,
-                'limits' => [
-                    'max_branches' => 5,
-                    'max_staff' => 50,
-                    'max_students' => 1000,
-                    'max_storage' => 50,
-                    'enabled_modules' => ['members', 'memberships', 'attendance', 'fees', 'trainers', 'reports'],
-                ],
-            ],
-        ];
-
-        foreach ($plans as $plan) {
-            Plan::firstOrCreate(
-                ['product_id' => $product->id, 'slug' => $plan['slug']],
-                $plan,
-            );
-        }
+        app(ProductPlanSeedService::class)->seedCanonicalPlans();
     }
 
     private function createSampleCustomersWithSubscriptions(): void
@@ -587,28 +214,21 @@ class ContentSeeder extends Seeder
                 'email' => 'ramesh@delhischool.com',
                 'company_name' => 'Delhi Public School',
                 'phone' => '9876543210',
-                'product_slug' => 'study-point-erp',
+                'product_slug' => 'study-point-management-software',
             ],
             [
                 'name' => 'Priya Kumari',
-                'email' => 'priya@smartcoaching.com',
-                'company_name' => 'Smart Coaching Institute',
+                'email' => 'priya@smartpharmacy.com',
+                'company_name' => 'Smart Pharmacy',
                 'phone' => '9876543211',
-                'product_slug' => 'coaching-erp',
+                'product_slug' => 'medical-store-management-software',
             ],
             [
                 'name' => 'Amit Singh',
-                'email' => 'amit@citylibrary.com',
-                'company_name' => 'City Library',
+                'email' => 'amit@happynursery.com',
+                'company_name' => 'Happy Nursery School',
                 'phone' => '9876543212',
-                'product_slug' => 'library-management-system',
-            ],
-            [
-                'name' => 'Neha Patel',
-                'email' => 'neha@fitzone.com',
-                'company_name' => 'FitZone Gym',
-                'phone' => '9876543213',
-                'product_slug' => 'gym-management-system',
+                'product_slug' => 'nursery-school-management-software',
             ],
         ];
 

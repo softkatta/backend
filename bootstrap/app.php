@@ -22,11 +22,14 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => RoleMiddleware::class,
+            'permission' => \App\Http\Middleware\PermissionMiddleware::class,
+            'employee.portal.menu' => \App\Http\Middleware\EmployeePortalMenuMiddleware::class,
             'tenant' => EnsureTenantAccess::class,
             'maintenance' => EnsureSiteNotInMaintenance::class,
             'security.policy' => \App\Http\Middleware\EnforceSecurityPolicy::class,
             'session.timeout' => \App\Http\Middleware\EnforceSessionTimeout::class,
             'product.api' => \App\Http\Middleware\VerifyProductApiSignature::class,
+            'company.api' => \App\Http\Middleware\VerifyCompanyApiSignature::class,
         ]);
 
         $middleware->api(prepend: [

@@ -17,8 +17,11 @@ class Order extends Model
         'user_id',
         'product_id',
         'plan_id',
+        'coupon_id',
+        'coupon_code',
         'order_number',
         'amount',
+        'discount_amount',
         'tax_amount',
         'total_amount',
         'status',
@@ -30,6 +33,7 @@ class Order extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
             'tax_amount' => 'decimal:2',
             'total_amount' => 'decimal:2',
         ];
@@ -48,6 +52,11 @@ class Order extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
+    }
+
+    public function coupon(): BelongsTo
+    {
+        return $this->belongsTo(Coupon::class);
     }
 
     public function invoice(): HasOne

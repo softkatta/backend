@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Enums\NotificationChannel;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\NotificationService;
@@ -28,7 +29,13 @@ class NotificationController extends BaseApiController
             'type' => ['required', 'string', 'in:info,success,warning,error'],
             'target' => ['required', 'string', 'in:all_clients,all_admins,specific_user'],
             'user_id' => ['nullable', 'required_if:target,specific_user', 'exists:users,id'],
+            'channels' => ['nullable', 'array', 'min:1'],
+            'channels.*' => ['string', 'in:email,whatsapp,in_app'],
         ]);
+
+        $channels = ! empty($data['channels'])
+            ? array_map(fn (string $channel) => NotificationChannel::from($channel), $data['channels'])
+            : NotificationService::allChannels();
 
         $users = match ($data['target']) {
             'all_clients' => User::where('role', 'client')->where('is_active', true)->get(),
@@ -37,10 +44,10 @@ class NotificationController extends BaseApiController
         };
 
         foreach ($users as $user) {
-            $service->send($user, $data['type'], $data['title'], $data['message']);
+            $service->send($user, $data['type'], $data['title'], $data['message'], $channels);
         }
 
-        return $this->success(['sent' => $users->count()], 'Notifications sent.', 201);
+        return $this->success(['sent' => $users->count(), 'channels' => array_map(fn ($c) => $c->value, $channels)], 'Notifications sent.', 201);
     }
 
     public function destroy(Notification $notification): JsonResponse

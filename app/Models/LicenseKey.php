@@ -82,6 +82,11 @@ class LicenseKey extends Model
         return $this->hasMany(LicenseDomainResetRequest::class);
     }
 
+    public function installations(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(LicenseInstallation::class);
+    }
+
     public function isExpired(): bool
     {
         return $this->expires_at !== null && $this->expires_at->isPast();
@@ -122,7 +127,17 @@ class LicenseKey extends Model
         $domain = strtolower(trim($domain));
         $domain = preg_replace('#^https?://#', '', $domain) ?? $domain;
         $domain = rtrim($domain, '/');
+        $host = explode('/', $domain)[0] ?: null;
 
-        return explode('/', $domain)[0] ?: null;
+        if ($host === null || $host === '') {
+            return null;
+        }
+
+        // Ignore ports (React/Laravel may run on different ports in local).
+        if (str_contains($host, ':') && ! str_starts_with($host, '[')) {
+            $host = explode(':', $host)[0];
+        }
+
+        return $host ?: null;
     }
 }

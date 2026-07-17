@@ -10,34 +10,40 @@ class DisableAdminTwoFa extends Command
 {
     protected $signature = 'admin:disable-2fa';
 
-    protected $description = 'Disable 2FA for admin demo account';
+    protected $description = 'Disable login 2FA platform-wide and clear 2FA methods on the super admin user';
 
     public function handle(): int
     {
-        $admin = User::where('email', 'admin@softkatta.com')->first();
-        if (!$admin) {
-            $this->error('Admin user not found!');
+        $adminEmail = strtolower(trim((string) env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com')));
+        $admin = User::query()->whereRaw('LOWER(email) = ?', [$adminEmail])->first();
+
+        if (! $admin) {
+            $this->error('Super admin user not found!');
+
             return 1;
         }
 
-        $this->info('Admin user: ' . $admin->name . ' (' . $admin->email . ')');
+        $admin->update([
+            'two_factor_email_enabled' => false,
+            'two_factor_enabled' => false,
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+        ]);
 
         Setting::updateOrCreate(
-            ['key' => 'demo_account_email'],
-            ['value' => 'admin@softkatta.com']
+            ['key' => 'two_factor_login_enabled'],
+            ['value' => 'false', 'group' => 'security'],
         );
 
-        Setting::updateOrCreate(
-            ['key' => 'demo_account_2fa_enabled'],
-            ['value' => '0']
-        );
+        Setting::query()
+            ->where('key', 'demo_account_email')
+            ->whereRaw('LOWER(value) = ?', [$adminEmail])
+            ->update(['value' => '']);
 
-        $this->newLine();
-        $this->info('✅ Settings updated:');
-        $this->line('   - demo_account_email: admin@softkatta.com');
-        $this->line('   - demo_account_2fa_enabled: false');
-        $this->newLine();
-        $this->info('✅ Admin login will now bypass 2FA verification!');
+        $this->info('Super admin 2FA disabled: '.$admin->email);
+        $this->line('   - two_factor_login_enabled = false');
+        $this->line('   - admin user 2FA methods cleared');
+        $this->line('   - demo_account_email cleared when it matched super admin');
 
         return self::SUCCESS;
     }

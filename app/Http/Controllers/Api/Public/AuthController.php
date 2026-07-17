@@ -10,6 +10,7 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Client\UpdateProfileRequest;
 use App\Models\LoginLog;
 use App\Models\User;
+use App\Services\AuthTokenService;
 use App\Services\MaintenanceService;
 use App\Services\SecurityService;
 use App\Services\TenantService;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\Storage;
 
 class AuthController extends BaseApiController
 {
-    public function register(RegisterRequest $request, TenantService $tenantService, MaintenanceService $maintenance): JsonResponse
+    public function register(RegisterRequest $request, TenantService $tenantService, MaintenanceService $maintenance, SecurityService $security): JsonResponse
     {
         if ($maintenance->isEnabled()) {
             return $this->error($maintenance->message(), 503);
@@ -39,7 +40,7 @@ class AuthController extends BaseApiController
             'avatar' => $avatarPath,
             'company_name' => $validated['company'] ?? null,
             'role' => UserRole::Client,
-            'two_factor_email_enabled' => true,
+            'two_factor_email_enabled' => $security->twoFactorLoginEnabled(),
             'is_active' => true,
         ]);
 
@@ -52,12 +53,28 @@ class AuthController extends BaseApiController
         $user->update(['tenant_id' => $tenant->id]);
         $user->refresh();
 
-        $token = AuthSecurityController::issueAccessToken($user, app(SecurityService::class));
+        $tokens = AuthSecurityController::issueAuthTokens($user);
 
         return $this->success([
-            'user' => AuthSecurityController::formatUser($user->load('tenant')),
-            'access_token' => $token,
+            'user' => AuthSecurityController::formatUser($user->load(AuthSecurityController::authUserRelations())),
+            'access_token' => $tokens['access_token'],
+            'refresh_token' => $tokens['refresh_token'],
         ], 'Registration successful.', 201);
+    }
+
+    public function refresh(Request $request, AuthTokenService $authTokens): JsonResponse
+    {
+        $data = $request->validate([
+            'refresh_token' => ['required', 'string'],
+        ]);
+
+        $tokens = $authTokens->refresh($data['refresh_token']);
+
+        if (! $tokens) {
+            return $this->error('Invalid or expired refresh token.', 401);
+        }
+
+        return $this->success($tokens, 'Session refreshed.');
     }
 
     public function identifyLogin(Request $request, SecurityService $security): JsonResponse
@@ -77,8 +94,7 @@ class AuthController extends BaseApiController
             ]);
         }
 
-        if (! $security->requiresTwoFactorAtLogin($user)
-            && (! $security->isDemoAccount($user) || $security->demoAccountTwoFactorEnabled())) {
+        if ($security->shouldAutoEnableEmailTwoFactorAtLogin($user)) {
             $user->update(['two_factor_email_enabled' => true]);
             $user->refresh();
         }
@@ -140,8 +156,7 @@ class AuthController extends BaseApiController
             $user->refresh();
         }
 
-        if (! $security->requiresTwoFactorAtLogin($user)
-            && (! $security->isDemoAccount($user) || $security->demoAccountTwoFactorEnabled())) {
+        if ($security->shouldAutoEnableEmailTwoFactorAtLogin($user)) {
             $user->update(['two_factor_email_enabled' => true]);
             $user->refresh();
         }
@@ -171,12 +186,13 @@ class AuthController extends BaseApiController
 
         AuthSecurityController::sendLoginAlert($user, $request);
 
-        $token = AuthSecurityController::issueAccessToken($user, $security);
+        $tokens = AuthSecurityController::issueAuthTokens($user);
         Auth::logout();
 
         return $this->success([
-            'user' => AuthSecurityController::formatUser($user->load('tenant')),
-            'access_token' => $token,
+            'user' => AuthSecurityController::formatUser($user->load(AuthSecurityController::authUserRelations())),
+            'access_token' => $tokens['access_token'],
+            'refresh_token' => $tokens['refresh_token'],
         ], 'Login successful.');
     }
 
@@ -189,7 +205,7 @@ class AuthController extends BaseApiController
 
     public function me(Request $request): JsonResponse
     {
-        return $this->success(AuthSecurityController::formatUser($request->user()->load('tenant', 'roles')));
+        return $this->success(AuthSecurityController::formatUser($request->user()->load(AuthSecurityController::authUserRelations())));
     }
 
     public function updateProfile(UpdateProfileRequest $request): JsonResponse
@@ -207,7 +223,7 @@ class AuthController extends BaseApiController
         $user->save();
 
         return $this->success(
-            AuthSecurityController::formatUser($user->fresh()->load('tenant', 'roles')),
+            AuthSecurityController::formatUser($user->fresh()->load(AuthSecurityController::authUserRelations())),
             'Profile updated successfully.',
         );
     }
@@ -241,7 +257,7 @@ class AuthController extends BaseApiController
         $user->update(['avatar' => $path]);
 
         return $this->success(
-            AuthSecurityController::formatUser($user->fresh()->load('tenant', 'roles')),
+            AuthSecurityController::formatUser($user->fresh()->load(AuthSecurityController::authUserRelations())),
             'Profile photo updated successfully.',
         );
     }

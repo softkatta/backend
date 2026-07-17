@@ -17,7 +17,14 @@ class InvoiceProfileService
         $defaults = config('invoice.company');
         $s = $this->settings();
 
-        $name = $s['company_name'] ?? $defaults['name'];
+        $name = trim((string) ($s['company_name'] ?? $defaults['name'] ?? ''));
+        if ($name === '') {
+            $name = trim((string) config('app.name', 'SoftKatta Solutions'));
+        }
+        if ($name === '' || $name === 'Laravel') {
+            $name = 'SoftKatta Solutions';
+        }
+
         $logoPath = $s['company_logo'] ?? null;
 
         return [
@@ -44,6 +51,22 @@ class InvoiceProfileService
         ];
     }
 
+    public function displayName(): string
+    {
+        $name = trim((string) ($this->company()['name'] ?? ''));
+
+        if ($name !== '' && $name !== 'Laravel') {
+            return $name;
+        }
+
+        return 'SoftKatta Solutions';
+    }
+
+    public function clearCache(): void
+    {
+        $this->cache = null;
+    }
+
     /** @return array<string, mixed> */
     public function branding(): array
     {
@@ -64,6 +87,8 @@ class InvoiceProfileService
             'gst_rate' => $this->gstRate(),
             'default_currency' => $this->currency(),
             'support_email' => $this->settings()['support_email'] ?? config('invoice.company.email'),
+            'company_description' => trim((string) ($this->settings()['company_description'] ?? '')),
+            'brand_short_name' => trim((string) ($this->settings()['brand_short_name'] ?? '')),
         ];
     }
 

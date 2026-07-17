@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Integration;
+use App\Services\IntegrationCredentialService;
 use App\Services\SmtpMailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,12 +37,25 @@ class IntegrationController extends BaseApiController
             'is_active' => ['boolean'],
         ]);
 
-        $integration = Integration::create($data);
+        $integration = new Integration([
+            'name' => $data['name'],
+            'provider' => $data['provider'],
+            'is_active' => $data['is_active'] ?? false,
+        ]);
+
+        if (isset($data['credentials'])) {
+            $integration->credentials = $this->mergeCredentials(
+                $integration,
+                (array) $data['credentials'],
+            );
+        }
+
+        $integration->save();
 
         return $this->success($this->formatIntegration($integration), 'Integration created.', 201);
     }
 
-    public function update(Request $request, Integration $integration): JsonResponse
+    public function update(Request $request, Integration $integration, SmtpMailService $smtpMail): JsonResponse
     {
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -51,10 +65,30 @@ class IntegrationController extends BaseApiController
         ]);
 
         if (isset($data['credentials'])) {
+            $incoming = (array) $data['credentials'];
+            $passwordChanging = $this->isSecretChanging($integration, $incoming);
+
             $data['credentials'] = $this->mergeCredentials(
                 $integration,
-                (array) $data['credentials'],
+                $incoming,
             );
+
+            if ($integration->provider === 'email_smtp' && $passwordChanging) {
+                $smtp = $smtpMail->resolveConfig(null, $data['credentials']);
+
+                if (! $smtp) {
+                    return $this->error('SMTP is incomplete. Enter host, username, password, and from email.', 422);
+                }
+
+                try {
+                    $smtpMail->verifyConnection($smtp);
+                } catch (Throwable $e) {
+                    return $this->error(
+                        'SMTP login failed. Password was not saved. '.$smtpMail->formatFailureMessage($e),
+                        422,
+                    );
+                }
+            }
         }
 
         $integration->update($data);
@@ -75,21 +109,22 @@ class IntegrationController extends BaseApiController
             return $this->error('Test email is only available for the SMTP integration.', 422);
         }
 
+        $integration = $integration->fresh();
+
         $data = $request->validate([
-            'to' => ['nullable', 'email'],
-            'credentials' => ['nullable', 'array'],
+            'to' => ['required', 'email'],
         ]);
 
-        $to = $data['to'] ?? $request->user()?->email;
+        $to = $data['to'];
 
-        if (! $to) {
-            return $this->error('Recipient email address is required.', 422);
+        if (! $smtpMail->resolveConfig($integration)) {
+            return $this->error('SMTP is not fully configured. Enter host, username, password, and from email, then click Save. Or configure MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD in backend/.env.', 422);
         }
 
         try {
-            $smtpMail->sendTest($integration, $to, $data['credentials'] ?? null);
-        } catch (\Throwable $e) {
-            return $this->error('Failed to send test email: '.$e->getMessage(), 422);
+            $smtpMail->sendTest($integration, $to);
+        } catch (Throwable $e) {
+            return $this->error($smtpMail->formatFailureMessage($e), 422);
         }
 
         return $this->success(null, "Test email sent to {$to}.");
@@ -101,13 +136,43 @@ class IntegrationController extends BaseApiController
      */
     private function mergeCredentials(Integration $integration, array $incoming): array
     {
-        $existing = (array) $integration->credentials;
+        try {
+            $existing = (array) $integration->credentials;
+        } catch (Throwable) {
+            $existing = [];
+        }
+
+        $secretFields = self::SECRET_FIELDS[$integration->provider] ?? ['api_secret', 'secret', 'password', 'access_token'];
         $merged = array_merge($existing, $incoming);
 
         foreach ($merged as $key => $value) {
-            if ($value === null || $value === '' || $value === '••••••••') {
+            if ($value === null || $value === '••••••••') {
                 unset($merged[$key]);
             }
+        }
+
+        foreach ($secretFields as $secretKey) {
+            $incomingValue = $incoming[$secretKey] ?? null;
+
+            if (
+                isset($existing[$secretKey])
+                && $existing[$secretKey] !== ''
+                && ($incomingValue === null || $incomingValue === '' || $incomingValue === '••••••••')
+            ) {
+                $merged[$secretKey] = $existing[$secretKey];
+            }
+        }
+
+        foreach ($incoming as $key => $value) {
+            if ($value !== '') {
+                continue;
+            }
+
+            if (in_array($key, $secretFields, true)) {
+                continue;
+            }
+
+            $merged[$key] = '';
         }
 
         return match ($integration->provider) {
@@ -126,17 +191,17 @@ class IntegrationController extends BaseApiController
      */
     private function mergeRazorpay(array $merged): array
     {
-        $keyId = $merged['key_id'] ?? $merged['api_key'] ?? null;
-        $keySecret = $merged['api_secret'] ?? $merged['secret'] ?? null;
+        if (isset($merged['key_id']) || isset($merged['api_key'])) {
+            $merged['key_id'] = (string) ($merged['key_id'] ?? $merged['api_key'] ?? '');
+        }
 
-        if ($keyId && $keySecret) {
-            $merged['key_id'] = (string) $keyId;
-            $merged['api_secret'] = (string) $keySecret;
+        if (isset($merged['api_secret']) || isset($merged['secret'])) {
+            $merged['api_secret'] = (string) ($merged['api_secret'] ?? $merged['secret'] ?? '');
         }
 
         unset($merged['api_key'], $merged['secret']);
 
-        return $merged;
+        return $this->removeEmptyValues($merged);
     }
 
     /**
@@ -149,11 +214,7 @@ class IntegrationController extends BaseApiController
             $merged['port'] = (string) $merged['port'];
         }
 
-        if (($merged['encryption'] ?? '') === 'none') {
-            $merged['encryption'] = '';
-        }
-
-        return $merged;
+        return $this->removeEmptyValues($merged);
     }
 
     /**
@@ -166,7 +227,7 @@ class IntegrationController extends BaseApiController
             $merged['api_version'] = 'v21.0';
         }
 
-        return $merged;
+        return $this->removeEmptyValues($merged);
     }
 
     /**
@@ -179,7 +240,7 @@ class IntegrationController extends BaseApiController
             $merged['scheme'] = 'https';
         }
 
-        return $merged;
+        return $this->removeEmptyValues($merged);
     }
 
     /**
@@ -188,18 +249,50 @@ class IntegrationController extends BaseApiController
      */
     private function mergeStripe(array $merged): array
     {
-        $publishable = $merged['publishable_key'] ?? $merged['key_id'] ?? null;
-        $secret = $merged['secret_key'] ?? $merged['api_secret'] ?? null;
-
-        if ($publishable) {
-            $merged['publishable_key'] = (string) $publishable;
+        if (isset($merged['publishable_key']) || isset($merged['key_id'])) {
+            $merged['publishable_key'] = (string) ($merged['publishable_key'] ?? $merged['key_id'] ?? '');
         }
 
-        if ($secret) {
-            $merged['secret_key'] = (string) $secret;
+        if (isset($merged['secret_key']) || isset($merged['api_secret'])) {
+            $merged['secret_key'] = (string) ($merged['secret_key'] ?? $merged['api_secret'] ?? '');
         }
 
-        return $merged;
+        unset($merged['key_id'], $merged['api_secret']);
+
+        return $this->removeEmptyValues($merged);
+    }
+
+    /**
+     * @param  array<string, mixed>  $incoming
+     */
+    private function isSecretChanging(Integration $integration, array $incoming): bool
+    {
+        $secretFields = self::SECRET_FIELDS[$integration->provider] ?? [];
+
+        foreach ($secretFields as $field) {
+            $value = $incoming[$field] ?? null;
+
+            if (is_string($value) && $value !== '' && $value !== '••••••••') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     * @return array<string, mixed>
+     */
+    private function removeEmptyValues(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if ($value === null || $value === '') {
+                unset($values[$key]);
+            }
+        }
+
+        return $values;
     }
 
     /**
@@ -243,6 +336,7 @@ class IntegrationController extends BaseApiController
         }
 
         $data['credentials'] = $this->maskCredentials($integration->provider, $credentials);
+        $data['is_configured'] = app(IntegrationCredentialService::class)->isIntegrationReady($integration);
 
         return $data;
     }

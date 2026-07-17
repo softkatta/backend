@@ -1,0 +1,197 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "generated_at": "2026-07-17",
+    "website": "https://softkatta.in",
+    "company": "SoftKatta Solutions",
+    "source": "Codebase analysis — seeders, public pages, API, chatbot module",
+    "languages": ["en", "mr", "hi"],
+    "notes": [
+      "Align chatbot product lists with 3 canonical products: Study Point, Medical Store, Nursery School",
+      "Remove legacy references to School ERP / Gym ERP unless products are re-added",
+      "Admin Settings may override branding at runtime — sync from /api/v1/site/branding in production"
+    ]
+  },
+  "sitemap": {
+    "public_pages": [
+      { "route": "/", "title": "Home", "chatbot_intents": ["company_overview", "products", "services", "demo", "contact"] },
+      { "route": "/about", "title": "About Us", "chatbot_intents": ["company_story", "mission", "values", "location"] },
+      { "route": "/products", "title": "Products Shop", "chatbot_intents": ["product_catalog", "trial", "purchase"] },
+      { "route": "/products/study-point-management-software", "title": "Study Point Management Software", "chatbot_intents": ["product_detail", "pricing", "demo", "features"] },
+      { "route": "/products/medical-store-management-software", "title": "Medical Store Management Software", "chatbot_intents": ["product_detail", "pricing", "demo", "features"] },
+      { "route": "/products/nursery-school-management-software", "title": "Nursery School Management Software", "chatbot_intents": ["product_detail", "pricing", "demo", "features"] },
+      { "route": "/services", "title": "Services", "chatbot_intents": ["services_overview", "quote", "consultation"] },
+      { "route": "/services/:slug", "title": "Service Detail", "chatbot_intents": ["service_detail", "quote"] },
+      { "route": "/pricing", "title": "Pricing", "chatbot_intents": ["pricing", "plans", "trial", "gst"] },
+      { "route": "/contact", "title": "Contact Us", "chatbot_intents": ["contact", "quote", "whatsapp"] },
+      { "route": "/faq", "title": "FAQ", "chatbot_intents": ["faq_search"] },
+      { "route": "/blog", "title": "Blog", "chatbot_intents": ["resources", "industry_insights"] },
+      { "route": "/blog/:slug", "title": "Blog Article", "chatbot_intents": ["content_help"] },
+      { "route": "/careers", "title": "Careers", "chatbot_intents": ["jobs", "apply"] },
+      { "route": "/careers/:slug/apply", "title": "Career Apply", "chatbot_intents": ["job_application"] },
+      { "route": "/register", "title": "Register", "chatbot_intents": ["signup", "trial"] },
+      { "route": "/cart", "title": "Cart", "chatbot_intents": ["purchase"], "auth_required": true },
+      { "route": "/checkout", "title": "Checkout", "chatbot_intents": ["payment", "coupon"], "auth_required": true }
+    ],
+    "missing_public_pages": [
+      { "route": "/demo", "recommendation": "Dedicated demo booking page or chatbot Book Demo flow" },
+      { "route": "/support", "recommendation": "Public support hub linking to client portal + chatbot" },
+      { "route": "/privacy", "recommendation": "Privacy Policy — required for trust & chatbot legal queries" },
+      { "route": "/terms", "recommendation": "Terms of Service" },
+      { "route": "/refund-policy", "recommendation": "Refund & cancellation policy" },
+      { "route": "/documentation", "recommendation": "Product docs / getting started guides" }
+    ],
+    "authenticated_only": [
+      { "route": "/dashboard/support", "title": "Client Support Tickets" }
+    ]
+  },
+  "categories": [
+    { "slug": "products", "name": "Products", "sort_order": 1, "description": "ERP products, features, trials, modules" },
+    { "slug": "services", "name": "Services", "sort_order": 2, "description": "Custom development, websites, mobile, ERP, SaaS, AMC" },
+    { "slug": "pricing", "name": "Pricing", "sort_order": 3, "description": "Plans, subscriptions, discounts, GST" },
+    { "slug": "support", "name": "Support", "sort_order": 4, "description": "Help, tickets, troubleshooting" },
+    { "slug": "company", "name": "Company Information", "sort_order": 5, "description": "About, location, hours, team" },
+    { "slug": "billing", "name": "Billing", "sort_order": 6, "description": "Payments, invoices, renewals, refunds" },
+    { "slug": "technical", "name": "Technical", "sort_order": 7, "description": "Hosting, security, integrations, migration" },
+    { "slug": "careers", "name": "Careers", "sort_order": 8, "description": "Jobs, applications, hiring" },
+    { "slug": "general", "name": "General", "sort_order": 9, "description": "Catch-all and navigation help" }
+  ],
+  "welcome_messages": {
+    "en": "Welcome to SoftKatta Solutions 👋\n\nWe build ERP & business software for schools, medical stores, nurseries, and enterprises.\n\nHow can I help you today?",
+    "mr": "SoftKatta Solutions मध्ये आपले स्वागत आहे 👋\n\nआम्ही शाळा, medical store, nursery आणि enterprises साठी ERP software तयार करतो.\n\nआज मी तुम्हाला कशी मदत करू?",
+    "hi": "SoftKatta Solutions में आपका स्वागत है 👋\n\nहम schools, medical stores, nurseries और enterprises के लिए ERP software बनाते हैं।\n\nआज मैं आपकी कैसे मदद कर सकता हूँ?"
+  },
+  "quick_replies": [
+    { "key": "products", "label_en": "Products", "label_mr": "उत्पादने", "label_hi": "उत्पाद" },
+    { "key": "pricing", "label_en": "Pricing", "label_mr": "किंमत", "label_hi": "मूल्य" },
+    { "key": "book_demo", "label_en": "Book Demo", "label_mr": "डेमो बुक करा", "label_hi": "डेमो बुक करें" },
+    { "key": "contact", "label_en": "Contact Us", "label_mr": "संपर्क", "label_hi": "संपर्क" },
+    { "key": "support", "label_en": "Support", "label_mr": "सपोर्ट", "label_hi": "सहायता" },
+    { "key": "business_hours", "label_en": "Business Hours", "label_mr": "वेळ", "label_hi": "समय" }
+  ],
+  "company": {
+    "name": "SoftKatta Solutions",
+    "tagline": "Custom Software Development Company in Nanded",
+    "address": "Talni, Nanded, Maharashtra, India",
+    "phone": "+91 7038452357",
+    "email": "support@softkatta.in",
+    "website": "https://softkatta.in",
+    "hours": "Monday – Saturday: 9:00 AM – 7:00 PM IST. Sunday: Closed.",
+    "response_sla": "Within 24 business hours for contact form and support tickets",
+    "industries": ["Education", "Healthcare / Pharmacy", "Nursery Schools", "Retail", "Enterprises", "Startups", "Service Providers"],
+    "trust_badges": ["GST Ready", "Udyam MSME", "Shop Act", "Secure Cloud"]
+  },
+  "lead_flows": [
+    {
+      "id": "request_demo",
+      "name": "Request Demo",
+      "trigger": ["book_demo", "demo", "schedule demo", "product demo"],
+      "fields": ["name", "phone", "email", "company_name", "product", "preferred_datetime", "message"],
+      "product_options": [
+        "Study Point Management Software",
+        "Medical Store Management Software",
+        "Nursery School Management Software",
+        "Custom Software / ERP",
+        "Not sure yet"
+      ],
+      "confirmation": "Thank you! Our team will contact you within 24 hours to schedule your demo.",
+      "admin_route": "/admin/chatbot/leads"
+    },
+    {
+      "id": "request_pricing",
+      "name": "Request Pricing",
+      "trigger": ["pricing", "quote", "cost", "how much"],
+      "fields": ["name", "phone", "email", "company_name", "product", "message"],
+      "confirmation": "Thank you! We'll share pricing details shortly.",
+      "fallback_link": "/pricing"
+    },
+    {
+      "id": "contact_sales",
+      "name": "Contact Sales",
+      "trigger": ["sales", "talk to sales", "purchase", "buy"],
+      "fields": ["name", "phone", "email", "company_name", "product", "message"],
+      "confirmation": "Our sales team will reach out within 24 hours.",
+      "fallback_link": "/contact"
+    },
+    {
+      "id": "technical_support",
+      "name": "Technical Support",
+      "trigger": ["support", "help", "issue", "problem", "bug", "not working"],
+      "fields": ["name", "phone", "email", "company_name", "product", "message"],
+      "confirmation": "Support request received. For logged-in customers, you can also raise a ticket at /dashboard/support.",
+      "client_portal": "/dashboard/support"
+    },
+    {
+      "id": "callback_request",
+      "name": "Callback Request",
+      "trigger": ["call me", "callback", "phone call"],
+      "fields": ["name", "phone", "email", "company_name", "product", "message"],
+      "confirmation": "We'll call you back during business hours (Mon–Sat, 9 AM – 7 PM IST)."
+    }
+  ],
+  "conversation_flows": [
+    {
+      "id": "product_discovery",
+      "entry": "products",
+      "steps": [
+        { "bot": "Which industry are you in?", "options": ["Education / Coaching", "Medical Store / Pharmacy", "Nursery School", "Other / Custom"] },
+        { "bot": "Here's the best match:", "action": "show_product_card" },
+        { "bot": "Would you like pricing, a free trial, or a demo?", "options": ["pricing", "book_demo", "trial_info"] }
+      ]
+    },
+    {
+      "id": "trial_to_signup",
+      "entry": "free trial",
+      "steps": [
+        { "bot": "All our products include a 14-day free trial — no credit card required.", "link": "/register" },
+        { "bot": "After signup, visit the product page and click 'Try free for 14 days'.", "link": "/products" }
+      ]
+    },
+    {
+      "id": "purchase_flow",
+      "entry": "how to buy",
+      "steps": [
+        { "bot": "1. Create account at /register\n2. Browse /products\n3. Choose plan (monthly/yearly)\n4. Buy now or Add to cart\n5. Pay via Razorpay at checkout\n6. GST invoice emailed automatically" }
+      ]
+    },
+    {
+      "id": "service_quote",
+      "entry": "custom software",
+      "steps": [
+        { "bot": "We offer free consultation for custom software, ERP, websites, and mobile apps.", "action": "lead_form:contact_sales" },
+        { "bot": "Typical response time: within 24 business hours." }
+      ]
+    },
+    {
+      "id": "fallback",
+      "entry": "no_match",
+      "steps": [
+        { "bot": "I couldn't find an exact answer. You can:", "options": ["contact", "book_demo", "support", "business_hours"] },
+        { "bot": "Or call us at +91 7038452357 / email support@softkatta.in" }
+      ]
+    }
+  ],
+  "support_flows": [
+    {
+      "id": "login_issue",
+      "symptoms": ["can't login", "forgot password", "account locked"],
+      "steps": ["Try /login → Forgot password", "Check email for reset link", "If still stuck, submit Technical Support lead or email support@softkatta.in"]
+    },
+    {
+      "id": "payment_issue",
+      "symptoms": ["payment failed", "razorpay error", "charged twice"],
+      "steps": ["Note transaction ID from Razorpay", "Email support@softkatta.in with invoice/order number", "Team responds within 24 hours"]
+    },
+    {
+      "id": "renewal",
+      "symptoms": ["renew subscription", "expiring soon", "extend plan"],
+      "steps": ["Login → /dashboard/subscriptions", "Enable auto-renew or purchase new plan", "Contact support for manual renewal help"]
+    },
+    {
+      "id": "data_migration",
+      "symptoms": ["migrate data", "import students", "existing records"],
+      "steps": ["Implementation support included for paid plans", "Submit support lead with current system details", "Team schedules migration call"]
+    }
+  ],
+  "faqs": []
+}

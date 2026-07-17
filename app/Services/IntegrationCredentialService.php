@@ -45,31 +45,7 @@ class IntegrationCredentialService
     {
         $integration = $this->active('email_smtp');
 
-        if (! $integration) {
-            return null;
-        }
-
-        $creds = (array) $integration->credentials;
-        $host = $creds['host'] ?? null;
-        $username = $creds['username'] ?? null;
-        $password = $creds['password'] ?? null;
-        $fromAddress = $creds['from_address'] ?? null;
-
-        if (! $host || ! $username || ! $password || ! $fromAddress) {
-            return null;
-        }
-
-        return [
-            'host' => (string) $host,
-            'port' => (int) ($creds['port'] ?? 587),
-            'username' => (string) $username,
-            'password' => (string) $password,
-            'encryption' => isset($creds['encryption']) && $creds['encryption'] !== '' && $creds['encryption'] !== 'none'
-                ? (string) $creds['encryption']
-                : null,
-            'from_address' => (string) $fromAddress,
-            'from_name' => (string) ($creds['from_name'] ?? config('app.name')),
-        ];
+        return app(SmtpMailService::class)->resolveConfig($integration);
     }
 
     public function isEmailConfigured(): bool
@@ -163,6 +139,57 @@ class IntegrationCredentialService
     public function isPusherConfigured(): bool
     {
         return $this->pusher() !== null;
+    }
+
+    /**
+     * @return array{publishable_key: string, secret_key: string}|null
+     */
+    public function stripe(): ?array
+    {
+        $integration = $this->active('stripe');
+
+        if (! $integration) {
+            return null;
+        }
+
+        $creds = (array) $integration->credentials;
+        $publishableKey = $creds['publishable_key'] ?? null;
+        $secretKey = $creds['secret_key'] ?? null;
+
+        if (! $publishableKey || ! $secretKey) {
+            return null;
+        }
+
+        return [
+            'publishable_key' => (string) $publishableKey,
+            'secret_key' => (string) $secretKey,
+        ];
+    }
+
+    public function isStripeConfigured(): bool
+    {
+        return $this->stripe() !== null;
+    }
+
+    public function isIntegrationReady(Integration $integration): bool
+    {
+        try {
+            $creds = (array) $integration->credentials;
+        } catch (\Throwable) {
+            $creds = [];
+        }
+
+        return match ($integration->provider) {
+            'razorpay' => filled($creds['key_id'] ?? null) && filled($creds['api_secret'] ?? null),
+            'email_smtp' => app(SmtpMailService::class)->resolveConfig($integration) !== null,
+            'whatsapp' => filled($creds['phone_number_id'] ?? null) && filled($creds['access_token'] ?? null),
+            'pusher' => filled($creds['app_id'] ?? null)
+                && filled($creds['key'] ?? null)
+                && filled($creds['secret'] ?? null)
+                && filled($creds['cluster'] ?? null),
+            'stripe' => filled($creds['publishable_key'] ?? null) && filled($creds['secret_key'] ?? null),
+            default => false,
+        };
     }
 
     public function applyBroadcastingConfig(): void

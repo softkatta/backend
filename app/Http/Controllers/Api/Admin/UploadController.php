@@ -13,8 +13,17 @@ class UploadController extends BaseApiController
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,gif,webp,svg,ico', 'max:5120'],
+            'kind' => ['nullable', 'string', 'in:image,video'],
             'folder' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $kind = $data['kind'] ?? 'image';
+        $fileRules = $kind === 'video'
+            ? ['required', 'file', 'mimes:mp4,webm,mov,quicktime', 'max:102400']
+            : ['required', 'file', 'mimes:jpg,jpeg,png,gif,webp,svg,ico', 'max:10240'];
+
+        $request->validate([
+            'file' => $fileRules,
         ]);
 
         $folder = Str::slug($data['folder'] ?? 'uploads');
@@ -23,6 +32,7 @@ class UploadController extends BaseApiController
         return $this->success([
             'path' => $path,
             'url' => Storage::disk('public')->url($path),
+            'kind' => $kind,
         ], 'File uploaded.', 201);
     }
 }

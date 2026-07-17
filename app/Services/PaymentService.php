@@ -57,9 +57,11 @@ class PaymentService
             'invoice_id' => $order->invoice?->id,
             'gateway' => $gateway,
             'transaction_id' => $response['transaction_id'] ?? $response['razorpay_order_id'] ?? null,
-            'amount' => $order->total_amount,
+            'amount' => (float) ($payload['amount'] ?? $order->total_amount),
             'status' => PaymentStatus::Pending,
-            'gateway_response' => $response,
+            'gateway_response' => array_merge($response, array_filter([
+                'related_order_ids' => $payload['related_order_ids'] ?? null,
+            ])),
         ]);
 
         return [

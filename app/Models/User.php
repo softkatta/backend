@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'initial_login_password',
         'phone',
         'avatar',
         'role',
@@ -47,6 +48,7 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'two_factor_secret',
+        'initial_login_password',
     ];
 
     protected function casts(): array
@@ -54,6 +56,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'initial_login_password' => 'encrypted',
             'role' => UserRole::class,
             'two_factor_enabled' => 'boolean',
             'two_factor_email_enabled' => 'boolean',
@@ -70,7 +73,7 @@ class User extends Authenticatable
     {
         static::creating(function (self $user): void {
             if ($user->two_factor_email_enabled === null) {
-                $user->two_factor_email_enabled = true;
+                $user->two_factor_email_enabled = false;
             }
         });
     }
@@ -83,6 +86,21 @@ class User extends Authenticatable
     public function isClient(): bool
     {
         return $this->role === UserRole::Client;
+    }
+
+    public function isEmployee(): bool
+    {
+        return $this->role === UserRole::Employee;
+    }
+
+    public function isHrManager(): bool
+    {
+        return $this->role === UserRole::HrManager;
+    }
+
+    public function employeeProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Employee::class);
     }
 
     public function tenant(): BelongsTo

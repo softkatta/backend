@@ -6,14 +6,19 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Models\LicenseApiLog;
 use App\Models\LicenseDomainResetRequest;
 use App\Models\LicenseHistory;
+use App\Models\LicenseInstallation;
 use App\Models\LicenseKey;
+use App\Services\CompanyLicenseService;
 use App\Services\LicenseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class LicenseController extends BaseApiController
 {
-    public function __construct(private readonly LicenseService $licenseService) {}
+    public function __construct(
+        private readonly LicenseService $licenseService,
+        private readonly CompanyLicenseService $companyLicenseService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -161,6 +166,48 @@ class LicenseController extends BaseApiController
             ->paginate(20);
 
         return $this->success($history);
+    }
+
+    public function installations(Request $request, LicenseKey $license): JsonResponse
+    {
+        if ($response = $this->authorizeLicense($request, $license)) {
+            return $response;
+        }
+
+        $installations = LicenseInstallation::query()
+            ->where('license_key_id', $license->id)
+            ->latest()
+            ->get()
+            ->map(fn (LicenseInstallation $row): array => [
+                'id' => $row->id,
+                'installation_id' => $row->installation_id,
+                'domain' => $row->domain,
+                'product_version' => $row->product_version,
+                'last_verified_at' => $row->last_verified_at?->toIso8601String(),
+                'revoked_at' => $row->revoked_at?->toIso8601String(),
+                'created_at' => $row->created_at?->toIso8601String(),
+            ]);
+
+        return $this->success($installations);
+    }
+
+    public function deactivateInstallation(Request $request, LicenseKey $license, LicenseInstallation $installation): JsonResponse
+    {
+        if ($response = $this->authorizeLicense($request, $license)) {
+            return $response;
+        }
+
+        if ($installation->license_key_id !== $license->id) {
+            return $this->error('Installation not found.', 404);
+        }
+
+        $updated = $this->companyLicenseService->revokeInstallation($installation, $request->user()->id);
+
+        return $this->success([
+            'id' => $updated->id,
+            'installation_id' => $updated->installation_id,
+            'revoked_at' => $updated->revoked_at?->toIso8601String(),
+        ], 'Installation deactivated.');
     }
 
     private function authorizeLicense(Request $request, LicenseKey $license): ?JsonResponse

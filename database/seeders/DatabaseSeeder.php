@@ -13,13 +13,19 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(RoleSeeder::class);
+        $this->call(CompanyRoleSeeder::class);
+        $this->call(PortalMenuSeeder::class);
+        $this->call(CompanyRoleMenuSeeder::class);
+        $this->call(SeoContentSeeder::class);
         $this->call(ContentSeeder::class);
+        $this->call(CouponOfferSeeder::class);
+        $this->call(ChatbotSeeder::class);
 
         // Create Super Admin from env
         $superAdmin = User::firstOrCreate(
             ['email' => env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com')],
             [
-                'name'     => env('SUPER_ADMIN_NAME', 'Super Admin'),
+                'name'     => env('SUPER_ADMIN_NAME', 'Founder / Owner'),
                 'password' => Hash::make(env('SUPER_ADMIN_PASSWORD', 'Admin@123')),
                 'is_active' => true,
             ]
@@ -32,6 +38,8 @@ class DatabaseSeeder extends Seeder
             ['key' => 'company_address', 'value' => '', 'group' => 'general'],
             ['key' => 'company_phone', 'value' => '', 'group' => 'general'],
             ['key' => 'company_website', 'value' => '', 'group' => 'general'],
+            ['key' => 'company_description', 'value' => '', 'group' => 'general'],
+            ['key' => 'brand_short_name', 'value' => '', 'group' => 'general'],
             ['key' => 'company_logo', 'value' => '', 'group' => 'general'],
             ['key' => 'favicon', 'value' => '', 'group' => 'general'],
             ['key' => 'company_initials', 'value' => '', 'group' => 'general'],
@@ -58,6 +66,7 @@ class DatabaseSeeder extends Seeder
             ['key' => 'session_timeout_minutes', 'value' => '30', 'group' => 'security'],
             ['key' => 'ip_whitelisting', 'value' => 'false', 'group' => 'security'],
             ['key' => 'ip_whitelist', 'value' => '', 'group' => 'security'],
+            ['key' => 'two_factor_login_enabled', 'value' => 'false', 'group' => 'security'],
             ['key' => 'allow_email_otp', 'value' => 'true', 'group' => 'security'],
             ['key' => 'allow_authenticator', 'value' => 'true', 'group' => 'security'],
             ['key' => 'allow_passkeys', 'value' => 'true', 'group' => 'security'],

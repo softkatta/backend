@@ -5,15 +5,20 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\LicenseApiLog;
 use App\Models\LicenseHistory;
+use App\Models\LicenseInstallation;
 use App\Models\LicenseKey;
 use App\Models\Subscription;
+use App\Services\CompanyLicenseService;
 use App\Services\LicenseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class LicenseController extends BaseApiController
 {
-    public function __construct(private readonly LicenseService $licenseService) {}
+    public function __construct(
+        private readonly LicenseService $licenseService,
+        private readonly CompanyLicenseService $companyLicenseService,
+    ) {}
 
     /**
      * GET /api/v1/admin/licenses
@@ -190,6 +195,55 @@ class LicenseController extends BaseApiController
             ->paginate(30);
 
         return $this->success($history);
+    }
+
+    public function installations(LicenseKey $license): JsonResponse
+    {
+        $installations = LicenseInstallation::query()
+            ->where('license_key_id', $license->id)
+            ->latest()
+            ->get()
+            ->map(fn (LicenseInstallation $row): array => $this->mapInstallation($row));
+
+        return $this->success($installations);
+    }
+
+    public function revokeInstallation(LicenseKey $license, LicenseInstallation $installation): JsonResponse
+    {
+        if ($installation->license_key_id !== $license->id) {
+            return $this->error('Installation not found.', 404);
+        }
+
+        $updated = $this->companyLicenseService->revokeInstallation($installation, auth()->id());
+
+        return $this->success($this->mapInstallation($updated), 'Installation revoked.');
+    }
+
+    public function resetInstallations(LicenseKey $license): JsonResponse
+    {
+        $this->companyLicenseService->revokeAllInstallations($license, auth()->id());
+
+        return $this->success(null, 'All installations revoked. Products must re-activate.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapInstallation(LicenseInstallation $installation): array
+    {
+        return [
+            'id' => $installation->id,
+            'installation_id' => $installation->installation_id,
+            'domain' => $installation->domain,
+            'server_fingerprint' => $installation->server_fingerprint
+                ? substr($installation->server_fingerprint, 0, 12).'…'
+                : null,
+            'product_version' => $installation->product_version,
+            'registered_ip' => $installation->registered_ip,
+            'last_verified_at' => $installation->last_verified_at?->toIso8601String(),
+            'revoked_at' => $installation->revoked_at?->toIso8601String(),
+            'created_at' => $installation->created_at?->toIso8601String(),
+        ];
     }
 
     /**

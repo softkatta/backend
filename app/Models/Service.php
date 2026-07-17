@@ -11,7 +11,13 @@ class Service extends Model
         'name',
         'slug',
         'description',
+        'body',
+        'bullets_heading',
+        'bullets',
+        'meta_title',
+        'meta_description',
         'icon',
+        'image',
         'is_active',
         'sort_order',
     ];
@@ -20,6 +26,7 @@ class Service extends Model
     {
         return [
             'is_active' => 'boolean',
+            'bullets' => 'array',
         ];
     }
 }
