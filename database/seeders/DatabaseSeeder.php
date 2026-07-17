@@ -25,7 +25,7 @@ class DatabaseSeeder extends Seeder
         $superAdmin = User::firstOrCreate(
             ['email' => env('SUPER_ADMIN_EMAIL', 'admin@softkatta.com')],
             [
-                'name' => env('SUPER_ADMIN_NAME', 'Founder / Owner'),
+                'name' => env('SUPER_ADMIN_NAME', 'Super Admin'),
                 'password' => Hash::make(env('SUPER_ADMIN_PASSWORD', 'Admin@123')),
                 'role' => \App\Enums\UserRole::SuperAdmin,
                 'is_active' => true,
@@ -33,7 +33,7 @@ class DatabaseSeeder extends Seeder
         );
         // Repair if the account already existed with a non-admin role (common local seed issue).
         $superAdmin->forceFill([
-            'name' => $superAdmin->name ?: env('SUPER_ADMIN_NAME', 'Founder / Owner'),
+            'name' => $superAdmin->name ?: env('SUPER_ADMIN_NAME', 'Super Admin'),
             'role' => \App\Enums\UserRole::SuperAdmin,
             'is_active' => true,
         ])->save();

@@ -31,25 +31,7 @@ if ($roles->isEmpty()) {
 }
 
 foreach ($roles as $companyRole) {
-    if ($companyRole->name === 'Founder / Owner') {
-        $owner = User::query()->where('role', UserRole::SuperAdmin)->orderBy('id')->first();
-
-        if ($owner) {
-            $owner->update([
-                'name' => $owner->name === 'Super Admin' ? 'Founder / Owner' : $owner->name,
-                'initial_login_password' => $owner->initial_login_password ?: $password,
-            ]);
-            echo sprintf("%-28s %s (founder / super admin)\n", $companyRole->name, $owner->email);
-            echo sprintf("%-28s Login: /admin | Password: %s\n\n", '', $owner->initial_login_password ?? $password);
-            $updated++;
-        } else {
-            echo sprintf("%-28s skipped — no super admin user\n\n", $companyRole->name);
-            $skipped++;
-        }
-
-        continue;
-    }
-
+    // Founder / Owner is a company job title — keep it separate from system Super Admin.
     $slug = Str::slug($companyRole->slug ?: $companyRole->name);
     $email = "staff.{$slug}@softkatta.com";
     $fullName = $companyRole->name;

@@ -13,7 +13,7 @@ class CreateAdminUser extends Command
     protected $signature = 'admin:create
                             {--email= : Admin email address}
                             {--password= : Admin password (min 8 characters)}
-                            {--name=SoftKatta Admin : Display name}';
+                            {--name=Super Admin : Display name}';
 
     protected $description = 'Create a super admin user for the admin portal';
 
@@ -26,7 +26,7 @@ class CreateAdminUser extends Command
         $validator = Validator::make(
             ['email' => $email, 'password' => $password],
             [
-                'email' => ['required', 'email', 'unique:users,email'],
+                'email' => ['required', 'email'],
                 'password' => ['required', 'string', 'min:8'],
             ],
         );
@@ -39,20 +39,32 @@ class CreateAdminUser extends Command
             return self::FAILURE;
         }
 
-        $user = User::create([
-            'name' => $name,
-            'email' => $email,
-            'password' => Hash::make($password),
-            'role' => UserRole::SuperAdmin,
-            'two_factor_email_enabled' => true,
-            'is_active' => true,
-            'country' => 'India',
-        ]);
+        $user = User::query()->where('email', $email)->first();
 
-        $user->assignRole('super_admin');
+        if ($user) {
+            $user->forceFill([
+                'name' => $name,
+                'password' => Hash::make($password),
+                'role' => UserRole::SuperAdmin,
+                'is_active' => true,
+            ])->save();
+            $user->syncRoles(['super_admin']);
+            $this->info("Existing user promoted to super admin: {$user->email}");
+        } else {
+            $user = User::create([
+                'name' => $name,
+                'email' => $email,
+                'password' => Hash::make($password),
+                'role' => UserRole::SuperAdmin,
+                'two_factor_email_enabled' => false,
+                'is_active' => true,
+                'country' => 'India',
+            ]);
+            $user->assignRole('super_admin');
+            $this->info("Admin user created: {$user->email}");
+        }
 
-        $this->info("Admin user created: {$user->email}");
-        $this->line('Sign in at /admin with the credentials above.');
+        $this->line('Sign in at /admin with this email.');
 
         return self::SUCCESS;
     }

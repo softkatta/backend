@@ -155,7 +155,7 @@ class PermissionCatalogService
     public static function roleOptions(): array
     {
         return [
-            ['name' => 'super_admin', 'label' => 'Founder / Owner'],
+            ['name' => 'super_admin', 'label' => 'Super Admin'],
             ['name' => 'hr_manager', 'label' => 'HR Manager'],
             ['name' => 'employee', 'label' => 'Employee'],
             ['name' => 'client', 'label' => 'Client'],
