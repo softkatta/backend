@@ -52,9 +52,9 @@ class CompanyApiLicenseTest extends TestCase
 
         $product = Product::create([
             'name' => 'Study Point',
-            'slug' => 'study-point',
+            'slug' => 'study-point-management-software',
             'is_active' => true,
-            'meta' => ['current_version' => '1.0.0', 'installer_slug' => 'study-point'],
+            'meta' => ['current_version' => '1.0.0', 'installer_slug' => 'study-point-management-software'],
         ]);
 
         $plan = Plan::create([
@@ -102,7 +102,7 @@ class CompanyApiLicenseTest extends TestCase
         $this->integration = ProductIntegration::create([
             'product_id' => $product->id,
             'name' => 'Study Point',
-            'slug' => 'study-point',
+            'slug' => 'study-point-management-software',
             'version' => '1.0.0',
             'api_base_url' => 'http://localhost/api/v1/company',
             'public_api_key' => $this->publicKey,

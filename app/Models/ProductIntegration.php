@@ -64,6 +64,16 @@ class ProductIntegration extends Model
             return version_compare($version, $this->version, '>=') || $version === $this->version;
         }
 
-        return in_array($version, $supported, true);
+        if (in_array($version, $supported, true)) {
+            return true;
+        }
+
+        // Treat listed versions as a floor so patch bumps (1.0.1) are not blocked.
+        $minimum = collect($supported)
+            ->filter(fn ($item) => is_string($item) && $item !== '')
+            ->sort(fn (string $a, string $b) => version_compare($a, $b))
+            ->first();
+
+        return is_string($minimum) && version_compare($version, $minimum, '>=');
     }
 }

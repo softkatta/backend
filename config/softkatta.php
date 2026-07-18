@@ -13,12 +13,12 @@ return [
     */
 
     'central_api_url' => rtrim(
-        env('SOFTKATTA_CENTRAL_API_URL', 'https://softkatta.com/api/v1'),
+        env('SOFTKATTA_CENTRAL_API_URL', 'https://api.softkatta.in/api/v1'),
         '/'
     ),
 
     'company_api_url' => rtrim(
-        env('SOFTKATTA_COMPANY_API_URL', env('SOFTKATTA_CENTRAL_API_URL', 'https://softkatta.com/api/v1').'/company'),
+        env('SOFTKATTA_COMPANY_API_URL', env('SOFTKATTA_CENTRAL_API_URL', 'https://api.softkatta.in/api/v1').'/company'),
         '/'
     ),
 

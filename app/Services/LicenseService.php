@@ -54,12 +54,14 @@ class LicenseService
 
         return [
             'SOFTKATTA_COMPANY_API_URL' => config('softkatta.company_api_url'),
-            'SOFTKATTA_API_URL' => config('softkatta.central_api_url'),
             'SOFTKATTA_PUBLIC_API_KEY' => $integration?->public_api_key ?? '',
-            'SOFTKATTA_API_KEY' => $integration?->public_api_key ?? $license->license_key,
+            'SOFTKATTA_API_SECRET' => $integration?->secret_api_key ?? '',
             'SOFTKATTA_LICENSE_KEY' => $license->license_key,
             'SOFTKATTA_PRODUCT_SLUG' => $product?->installerSlug() ?? '',
             'SOFTKATTA_PRODUCT_VERSION' => $product?->currentVersion() ?? '1.0.0',
+            // Legacy aliases (prefer COMPANY_API_URL + PUBLIC_API_KEY + API_SECRET above).
+            'SOFTKATTA_API_URL' => config('softkatta.central_api_url'),
+            'SOFTKATTA_API_KEY' => $integration?->public_api_key ?? $license->license_key,
         ];
     }
 

@@ -298,8 +298,10 @@ class CompanyLicenseService
             return $this->error('DOMAIN_NOT_AUTHORIZED', 'Domain does not match this installation.', 403);
         }
 
-        if ($installation->server_fingerprint && $fingerprint !== '' && ! hash_equals($installation->server_fingerprint, $fingerprint)) {
-            return $this->error('SERVER_VERIFICATION_FAILED', 'Server fingerprint mismatch.', 403);
+        if ($installation->server_fingerprint) {
+            if ($fingerprint === '' || ! hash_equals($installation->server_fingerprint, $fingerprint)) {
+                return $this->error('SERVER_VERIFICATION_FAILED', 'Server fingerprint mismatch.', 403);
+            }
         }
 
         $installToken = LicenseInstallation::generateToken();
@@ -467,8 +469,10 @@ class CompanyLicenseService
             return $this->failResolve('DOMAIN_NOT_AUTHORIZED', 'This license is not valid for this domain.', 403, $license, $installation);
         }
 
-        if ($installation->server_fingerprint && $fingerprint !== '' && ! hash_equals($installation->server_fingerprint, $fingerprint)) {
-            return $this->failResolve('SERVER_VERIFICATION_FAILED', 'Server fingerprint mismatch.', 403, $license, $installation);
+        if ($installation->server_fingerprint) {
+            if ($fingerprint === '' || ! hash_equals($installation->server_fingerprint, $fingerprint)) {
+                return $this->failResolve('SERVER_VERIFICATION_FAILED', 'Server fingerprint mismatch.', 403, $license, $installation);
+            }
         }
 
         if ($license->force_logout_at && $license->force_logout_at->greaterThan($installation->last_verified_at ?? now()->subYear())) {

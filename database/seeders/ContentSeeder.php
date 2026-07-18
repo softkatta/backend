@@ -15,7 +15,6 @@ use App\Services\LicenseService;
 use App\Services\ProductIntegrationService;
 use App\Services\ProductPlanSeedService;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class ContentSeeder extends Seeder
 {
@@ -237,7 +236,7 @@ class ContentSeeder extends Seeder
                 ['email' => $customerData['email']],
                 [
                     'name' => $customerData['name'],
-                    'password' => Hash::make('Password@123'),
+                    'password' => 'Password@123',
                     'phone' => $customerData['phone'],
                     'company_name' => $customerData['company_name'],
                     'role' => 'client',

@@ -21,7 +21,7 @@ class ProductIntegrationService
             'name' => $overrides['name'] ?? $product->name,
             'slug' => $overrides['slug'] ?? $product->installerSlug(),
             'version' => $overrides['version'] ?? $product->currentVersion(),
-            'api_base_url' => $overrides['api_base_url'] ?? config('softkatta.central_api_url'),
+            'api_base_url' => $overrides['api_base_url'] ?? config('softkatta.company_api_url'),
             'public_api_key' => $credentials['public_api_key'],
             'secret_api_key' => $credentials['secret_api_key'],
             'client_id' => $credentials['client_id'],
@@ -101,113 +101,57 @@ class ProductIntegrationService
     public function buildIntegrationGuide(ProductIntegration $integration): array
     {
         $integration->loadMissing('product');
-        $baseUrl = rtrim($integration->api_base_url, '/');
+        $companyBase = rtrim((string) config('softkatta.company_api_url'), '/');
+        $baseUrl = $companyBase !== '' ? $companyBase : rtrim((string) $integration->api_base_url, '/');
+        if (! str_ends_with($baseUrl, '/company') && ! str_contains($baseUrl, '/api/v1/company')) {
+            $baseUrl = rtrim((string) config('softkatta.company_api_url', 'https://api.softkatta.in/api/v1/company'), '/');
+        }
+
         $slug = $integration->slug;
         $publicKey = $integration->public_api_key;
+        $version = $integration->version ?: '1.0.0';
         $sampleDomain = 'erp.example.com';
         $sampleLicense = 'SK-STUDY-XXXXX-XXXXX';
+        $sampleInstallationId = '00000000-0000-0000-0000-000000000001';
+        $sampleFingerprint = 'fp_example_server_fingerprint';
         $timestamp = time();
-        $path = '/central/license/check';
+        $nonce = 'example-nonce-'.substr(md5((string) $timestamp), 0, 16);
+        $path = '/api/v1/company/activate';
         $method = 'POST';
         $body = json_encode([
             'license_key' => $sampleLicense,
-            'domain' => $sampleDomain,
+            'installation_id' => $sampleInstallationId,
         ], JSON_THROW_ON_ERROR);
         $bodyHash = hash('sha256', $body);
-        $signaturePayload = implode("\n", [(string) $timestamp, strtoupper($method), $path, $bodyHash]);
-        $sampleSignature = hash_hmac('sha256', $signaturePayload, 'YOUR_SECRET_API_KEY');
+        $canonical = implode("\n", [
+            strtoupper($method),
+            $path,
+            (string) $timestamp,
+            $nonce,
+            $slug,
+            $sampleDomain,
+            $version,
+            $sampleInstallationId,
+            $sampleFingerprint,
+            $bodyHash,
+        ]);
+        $sampleSignature = hash_hmac('sha256', $canonical, 'YOUR_SECRET_API_KEY');
 
         $curl = <<<CURL
-curl -X POST "{$baseUrl}/license/check" \\
+curl -X POST "{$baseUrl}/activate" \\
   -H "Authorization: Bearer {$publicKey}" \\
   -H "Content-Type: application/json" \\
+  -H "Accept: application/json" \\
   -H "X-Product-Slug: {$slug}" \\
-  -H "X-License-Key: {$sampleLicense}" \\
   -H "X-Domain: {$sampleDomain}" \\
-  -H "X-Product-Version: {$integration->version}" \\
-  -H "X-Request-Time: {$timestamp}" \\
+  -H "X-Product-Version: {$version}" \\
+  -H "X-Installation-Id: {$sampleInstallationId}" \\
+  -H "X-Server-Fingerprint: {$sampleFingerprint}" \\
+  -H "X-Timestamp: {$timestamp}" \\
+  -H "X-Nonce: {$nonce}" \\
   -H "X-Signature: {$sampleSignature}" \\
   -d '{$body}'
 CURL;
-
-        $laravel = <<<PHP
-use Illuminate\Support\Facades\Http;
-
-\$timestamp = time();
-\$path = '/central/license/check';
-\$body = ['license_key' => '{$sampleLicense}', 'domain' => '{$sampleDomain}'];
-\$bodyJson = json_encode(\$body);
-\$signaturePayload = implode("\\n", [
-    \$timestamp,
-    'POST',
-    \$path,
-    hash('sha256', \$bodyJson),
-]);
-\$signature = hash_hmac('sha256', \$signaturePayload, config('services.softkatta.secret_api_key'));
-
-\$response = Http::withHeaders([
-    'Authorization' => 'Bearer {$publicKey}',
-    'X-Product-Slug' => '{$slug}',
-    'X-License-Key' => '{$sampleLicense}',
-    'X-Domain' => '{$sampleDomain}',
-    'X-Product-Version' => '{$integration->version}',
-    'X-Request-Time' => (string) \$timestamp,
-    'X-Signature' => \$signature,
-])->post('{$baseUrl}/license/check', \$body);
-PHP;
-
-        $axios = <<<JS
-import axios from 'axios';
-import crypto from 'crypto';
-
-const timestamp = Math.floor(Date.now() / 1000);
-const path = '/central/license/check';
-const body = { license_key: '{$sampleLicense}', domain: '{$sampleDomain}' };
-const bodyJson = JSON.stringify(body);
-const signaturePayload = [timestamp, 'POST', path, crypto.createHash('sha256').update(bodyJson).digest('hex')].join('\\n');
-const signature = crypto.createHmac('sha256', 'YOUR_SECRET_API_KEY').update(signaturePayload).digest('hex');
-
-const response = await axios.post('{$baseUrl}/license/check', body, {
-  headers: {
-    Authorization: 'Bearer {$publicKey}',
-    'X-Product-Slug': '{$slug}',
-    'X-License-Key': '{$sampleLicense}',
-    'X-Domain': '{$sampleDomain}',
-    'X-Product-Version': '{$integration->version}',
-    'X-Request-Time': String(timestamp),
-    'X-Signature': signature,
-  },
-});
-JS;
-
-        $fetchApi = <<<JS
-const timestamp = Math.floor(Date.now() / 1000);
-const path = '/central/license/check';
-const body = { license_key: '{$sampleLicense}', domain: '{$sampleDomain}' };
-const bodyJson = JSON.stringify(body);
-const encoder = new TextEncoder();
-const bodyHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(bodyJson))))
-  .map((b) => b.toString(16).padStart(2, '0')).join('');
-const signaturePayload = [timestamp, 'POST', path, bodyHash].join('\\n');
-const key = await crypto.subtle.importKey('raw', encoder.encode('YOUR_SECRET_API_KEY'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(signaturePayload));
-const signature = Array.from(new Uint8Array(signatureBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
-
-const response = await fetch('{$baseUrl}/license/check', {
-  method: 'POST',
-  headers: {
-    Authorization: 'Bearer {$publicKey}',
-    'Content-Type': 'application/json',
-    'X-Product-Slug': '{$slug}',
-    'X-License-Key': '{$sampleLicense}',
-    'X-Domain': '{$sampleDomain}',
-    'X-Product-Version': '{$integration->version}',
-    'X-Request-Time': String(timestamp),
-    'X-Signature': signature,
-  },
-  body: bodyJson,
-});
-JS;
 
         return [
             'product' => [
@@ -218,52 +162,58 @@ JS;
             'api_base_url' => $baseUrl,
             'public_api_key' => $integration->public_api_key,
             'authentication' => [
-                'method' => 'Bearer Token + HMAC SHA256 Signature',
-                'signature_payload' => '{timestamp}\\n{METHOD}\\n{path}\\n{sha256(body)}',
-                'request_window_seconds' => 300,
+                'method' => 'Bearer Token + HMAC SHA256 Signature (Company API)',
+                'signature_payload' => "METHOD\\nPATH\\nTIMESTAMP\\nNONCE\\nPRODUCT_SLUG\\nDOMAIN\\nPRODUCT_VERSION\\nINSTALLATION_ID\\nSERVER_FINGERPRINT\\nSHA256(raw_body)",
+                'request_window_seconds' => (int) config('softkatta.company_timestamp_skew', 300),
+                'preferred_client' => 'softkatta/licensing (Study Point install wizard)',
             ],
             'required_headers' => [
                 'Authorization',
                 'X-Product-Slug',
-                'X-License-Key',
                 'X-Domain',
                 'X-Product-Version',
-                'X-Request-Time',
+                'X-Installation-Id',
+                'X-Server-Fingerprint',
+                'X-Timestamp',
+                'X-Nonce',
                 'X-Signature',
+                'X-Install-Token (after activate)',
             ],
             'endpoints' => [
-                'POST /license/check',
-                'GET /subscription',
+                'POST /activate',
+                'POST /verify',
+                'POST /refresh-token',
                 'GET /modules',
                 'GET /limits',
                 'GET /addons',
                 'POST /heartbeat',
-                'POST /license/activate',
-                'POST /license/deactivate',
+            ],
+            'env' => [
+                'SOFTKATTA_COMPANY_API_URL' => $baseUrl,
+                'SOFTKATTA_PUBLIC_API_KEY' => $publicKey,
+                'SOFTKATTA_API_SECRET' => 'YOUR_SECRET_API_KEY',
+                'SOFTKATTA_PRODUCT_SLUG' => $slug,
+                'SOFTKATTA_PRODUCT_VERSION' => $version,
             ],
             'error_codes' => [
                 'INVALID_API_KEY',
                 'INVALID_LICENSE',
                 'DOMAIN_NOT_AUTHORIZED',
-                'PRODUCT_NOT_FOUND',
-                'PRODUCT_INACTIVE',
-                'VERSION_NOT_SUPPORTED',
-                'SUBSCRIPTION_EXPIRED',
-                'LICENSE_SUSPENDED',
+                'UNSUPPORTED_VERSION',
+                'EXPIRED_SUBSCRIPTION',
+                'SUSPENDED_LICENSE',
+                'INVALID_INSTALL_TOKEN',
                 'INVALID_SIGNATURE',
-                'REQUEST_EXPIRED',
-                'RATE_LIMIT_EXCEEDED',
+                'INSTALLATION_LIMIT',
+                'REVOKED_LICENSE',
             ],
             'examples' => [
                 'curl' => $curl,
-                'laravel' => $laravel,
-                'axios' => $axios,
-                'fetch' => $fetchApi,
             ],
             'troubleshooting' => [
-                'Ensure server clock is synced (REQUEST_EXPIRED otherwise).',
-                'Use the exact request path including /central prefix when signing.',
-                'Register the domain via POST /license/activate before calling /license/check.',
+                'Use Company API base URL ending with /api/v1/company (not /central).',
+                'Sign the canonical 10-line Company API payload; legacy Central HMAC will fail.',
+                'Product slug must match SoftKatta Admin → Product Integrations (e.g. study-point-management-software).',
                 'Never expose the secret API key in frontend code.',
             ],
         ];

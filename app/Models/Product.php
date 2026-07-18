@@ -80,7 +80,7 @@ class Product extends Model
         }
 
         return match ($this->slug) {
-            'study-point-erp' => 'study-point',
+            'study-point-erp', 'study-point' => 'study-point-management-software',
             'coaching-erp' => 'coaching',
             'library-management-system' => 'library',
             'gym-management-system' => 'gym',
