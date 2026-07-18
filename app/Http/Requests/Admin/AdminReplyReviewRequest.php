@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Requests\Auth;
+namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class LoginRequest extends FormRequest
+class AdminReplyReviewRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -17,9 +17,7 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string'],
-            'recaptcha_token' => ['nullable', 'string'],
+            'admin_reply' => ['required', 'string', 'min:2', 'max:5000'],
         ];
     }
 }

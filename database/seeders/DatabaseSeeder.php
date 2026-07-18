@@ -79,6 +79,9 @@ class DatabaseSeeder extends Seeder
             ['key' => 'enforce_2fa_clients', 'value' => 'false', 'group' => 'security'],
             ['key' => 'allow_users_disable_2fa', 'value' => 'true', 'group' => 'security'],
             ['key' => 'login_2fa_priority', 'value' => 'passkey,authenticator,email', 'group' => 'security'],
+            ['key' => 'recaptcha_enabled', 'value' => 'false', 'group' => 'security'],
+            ['key' => 'recaptcha_site_key', 'value' => '', 'group' => 'security'],
+            ['key' => 'recaptcha_secret_key', 'value' => '', 'group' => 'security'],
         ];
 
         foreach ($settings as $setting) {

@@ -34,6 +34,7 @@ class RegisterRequest extends FormRequest
             'phone' => ['nullable', 'string', 'regex:/^\d{10}$/'],
             'company' => ['nullable', 'string', 'max:255'],
             'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'recaptcha_token' => ['nullable', 'string'],
         ];
     }
 

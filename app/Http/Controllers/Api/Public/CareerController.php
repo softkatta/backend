@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Public\StoreJobApplicationRequest;
 use App\Models\Career;
 use App\Services\CareerApplicationService;
+use App\Services\RecaptchaService;
 use Illuminate\Http\JsonResponse;
 
 class CareerController extends BaseApiController
@@ -31,14 +32,16 @@ class CareerController extends BaseApiController
         return $this->success($career);
     }
 
-    public function apply(StoreJobApplicationRequest $request, string $slug, CareerApplicationService $service): JsonResponse
+    public function apply(StoreJobApplicationRequest $request, string $slug, CareerApplicationService $service, RecaptchaService $recaptcha): JsonResponse
     {
+        $recaptcha->verify($request->input('recaptcha_token'), $request->ip(), 'career_apply');
+
         $career = Career::query()
             ->where('slug', $slug)
             ->where('is_published', true)
             ->firstOrFail();
 
-        $application = $service->submit($career, $request->validated(), $request);
+        $application = $service->submit($career, $request->safe()->except(['recaptcha_token']), $request);
 
         return $this->success($application, 'Your application has been submitted successfully. A confirmation email has been sent.', 201);
     }

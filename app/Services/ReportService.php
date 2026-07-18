@@ -15,6 +15,10 @@ use Illuminate\Support\Carbon;
 
 class ReportService
 {
+    public function __construct(
+        private readonly SiteVisitService $visits,
+    ) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -50,6 +54,7 @@ class ReportService
                 'open_tickets' => SupportTicket::where('status', 'open')->count(),
                 'in_progress' => SupportTicket::where('status', 'in_progress')->count(),
             ],
+            'visitors' => $this->visits->dashboardCounts(),
         ];
     }
 

@@ -52,6 +52,7 @@ class StoreJobApplicationRequest extends FormRequest
                         : $fileRule,
                 ])
                 ->all(),
+            'recaptcha_token' => ['nullable', 'string'],
         ];
     }
 }

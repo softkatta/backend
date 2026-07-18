@@ -23,6 +23,7 @@ class ChatbotLeadRequest extends FormRequest
             'company_name' => ['nullable', 'string', 'max:190'],
             'product' => ['nullable', 'string', 'max:190'],
             'message' => ['nullable', 'string', 'max:5000'],
+            'recaptcha_token' => ['nullable', 'string'],
         ];
     }
 }

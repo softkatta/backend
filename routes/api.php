@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\Admin\SubscriptionController as AdminSubscriptionCo
 use App\Http\Controllers\Api\Admin\SupportTicketController as AdminSupportTicketController;
 use App\Http\Controllers\Api\Admin\TenantController;
 use App\Http\Controllers\Api\Admin\TestimonialController as AdminTestimonialController;
+use App\Http\Controllers\Api\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Api\Admin\UploadController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\Admin\JobApplicationController;
@@ -86,6 +87,7 @@ use App\Http\Controllers\Api\Public\ChatbotController;
 use App\Http\Controllers\Api\Public\ContactController;
 use App\Http\Controllers\Api\Public\PricingController;
 use App\Http\Controllers\Api\Public\ProductController;
+use App\Http\Controllers\Api\Public\ReviewController;
 use App\Http\Controllers\Api\Public\ServiceController;
 use App\Http\Controllers\Api\HrDocumentController;
 use App\Http\Controllers\Api\InboxNotificationController;
@@ -93,6 +95,7 @@ use App\Http\Controllers\Api\Public\SiteAboutController;
 use App\Http\Controllers\Api\Public\SiteBroadcastingController;
 use App\Http\Controllers\Api\Public\SiteBrandingController;
 use App\Http\Controllers\Api\Public\SiteContentController;
+use App\Http\Controllers\Api\Public\SiteController;
 use App\Http\Controllers\Api\Public\SiteHomeSectionsController;
 use App\Http\Controllers\Api\Public\SiteMaintenanceController;
 use App\Http\Controllers\Api\Public\SitePageContentController;
@@ -106,6 +109,8 @@ Route::prefix('v1')->group(function (): void {
     Route::get('site/about', [SiteAboutController::class, 'show']);
     Route::get('site/pages', [SitePageContentController::class, 'show']);
     Route::get('site/broadcasting', [SiteBroadcastingController::class, 'show']);
+    Route::get('site/captcha', [SiteController::class, 'captcha']);
+    Route::post('site/visit', [SiteController::class, 'visit'])->middleware('throttle:60,1');
     Route::post('auth/login', [AuthController::class, 'login']);
     Route::post('auth/login/identify', [AuthController::class, 'identifyLogin']);
     Route::post('auth/login/passkey/options', [TwoFactorMethodController::class, 'passkeyPrimaryLoginOptions']);
@@ -119,10 +124,12 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('products', [ProductController::class, 'index']);
         Route::get('products/{slug}', [ProductController::class, 'show']);
+        Route::get('products/{slug}/reviews', [ReviewController::class, 'productReviews']);
         Route::post('purchase', [ProductController::class, 'purchase']);
 
         Route::get('services', [ServiceController::class, 'index']);
         Route::get('services/{slug}', [ServiceController::class, 'show']);
+        Route::get('services/{slug}/reviews', [ReviewController::class, 'serviceReviews']);
 
         Route::get('blogs', [BlogController::class, 'index']);
         Route::get('blogs/{slug}', [BlogController::class, 'show']);
@@ -133,6 +140,16 @@ Route::prefix('v1')->group(function (): void {
         Route::get('hr/documents/download', [HrDocumentController::class, 'download']);
 
         Route::post('contact', [ContactController::class, 'store']);
+
+        Route::get('reviews/captcha', [ReviewController::class, 'captchaConfig']);
+        Route::get('reviews/stats', [ReviewController::class, 'stats']);
+        Route::get('reviews/home', [ReviewController::class, 'home']);
+        Route::get('reviews/featured', [ReviewController::class, 'featured']);
+        Route::get('reviews/latest', [ReviewController::class, 'latest']);
+        Route::get('reviews', [ReviewController::class, 'index']);
+        Route::post('reviews', [ReviewController::class, 'store'])->middleware('throttle:5,1');
+        Route::post('reviews/{uuid}/helpful', [ReviewController::class, 'markHelpful'])->middleware('throttle:20,1');
+        Route::post('reviews/{uuid}/report', [ReviewController::class, 'report'])->middleware('throttle:10,1');
 
         Route::prefix('chatbot')->group(function (): void {
             Route::get('settings', [ChatbotController::class, 'settings']);
@@ -435,6 +452,14 @@ Route::prefix('v1')->group(function (): void {
         Route::get('attendance-records', [AttendanceRecordController::class, 'index']);
         Route::patch('attendance-records/{attendanceRecord}', [AttendanceRecordController::class, 'update']);
         Route::apiResource('testimonials', AdminTestimonialController::class)->except(['show']);
+        Route::get('reviews/stats', [AdminReviewController::class, 'stats']);
+        Route::get('reviews/export', [AdminReviewController::class, 'export']);
+        Route::post('reviews/{review}/approve', [AdminReviewController::class, 'approve']);
+        Route::post('reviews/{review}/reject', [AdminReviewController::class, 'reject']);
+        Route::post('reviews/{review}/reply', [AdminReviewController::class, 'reply']);
+        Route::post('reviews/{review}/feature', [AdminReviewController::class, 'feature']);
+        Route::post('reviews/{review}/verify', [AdminReviewController::class, 'verify']);
+        Route::apiResource('reviews', AdminReviewController::class)->except(['store']);
         Route::apiResource('hero-slides', HeroSlideController::class)->except(['show']);
         Route::post('uploads', [UploadController::class, 'store']);
         Route::apiResource('faqs', AdminFaqController::class)->except(['show']);

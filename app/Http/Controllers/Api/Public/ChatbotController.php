@@ -12,6 +12,7 @@ use App\Services\ChatbotFaqSearchService;
 use App\Services\ChatbotLeadService;
 use App\Services\ChatbotMessageService;
 use App\Services\ChatbotSettingsService;
+use App\Services\RecaptchaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,6 +24,7 @@ class ChatbotController extends BaseApiController
         private readonly ChatbotFaqSearchService $faqSearch,
         private readonly ChatbotLeadService $leads,
         private readonly ChatbotConversationService $conversations,
+        private readonly RecaptchaService $recaptcha,
     ) {}
 
     public function settings(): JsonResponse
@@ -91,7 +93,9 @@ class ChatbotController extends BaseApiController
 
     public function saveLead(ChatbotLeadRequest $request): JsonResponse
     {
-        $lead = $this->leads->create($request->validated());
+        $this->recaptcha->verify($request->input('recaptcha_token'), $request->ip(), 'chatbot_lead');
+
+        $lead = $this->leads->create($request->safe()->except(['recaptcha_token']));
 
         return $this->success($lead, 'Lead submitted successfully.', 201);
     }

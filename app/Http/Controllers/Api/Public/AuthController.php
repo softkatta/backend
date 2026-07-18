@@ -12,6 +12,7 @@ use App\Models\LoginLog;
 use App\Models\User;
 use App\Services\AuthTokenService;
 use App\Services\MaintenanceService;
+use App\Services\RecaptchaService;
 use App\Services\SecurityService;
 use App\Services\TenantService;
 use App\Services\TrustedDeviceService;
@@ -23,13 +24,15 @@ use Illuminate\Support\Facades\Storage;
 
 class AuthController extends BaseApiController
 {
-    public function register(RegisterRequest $request, TenantService $tenantService, MaintenanceService $maintenance, SecurityService $security): JsonResponse
+    public function register(RegisterRequest $request, TenantService $tenantService, MaintenanceService $maintenance, SecurityService $security, RecaptchaService $recaptcha): JsonResponse
     {
         if ($maintenance->isEnabled()) {
             return $this->error($maintenance->message(), 503);
         }
 
-        $validated = $request->validated();
+        $recaptcha->verify($request->input('recaptcha_token'), $request->ip(), 'register');
+
+        $validated = $request->safe()->except(['recaptcha_token', 'avatar']);
         $avatarPath = $request->file('avatar')?->store('avatars', 'public');
 
         $user = User::create([
@@ -113,8 +116,10 @@ class AuthController extends BaseApiController
         ]);
     }
 
-    public function login(LoginRequest $request, TenantService $tenantService, MaintenanceService $maintenance, SecurityService $security, TrustedDeviceService $trustedDevices): JsonResponse
+    public function login(LoginRequest $request, TenantService $tenantService, MaintenanceService $maintenance, SecurityService $security, TrustedDeviceService $trustedDevices, RecaptchaService $recaptcha): JsonResponse
     {
+        $recaptcha->verify($request->input('recaptcha_token'), $request->ip(), 'login');
+
         if (! Auth::attempt($request->only('email', 'password'))) {
             LoginLog::create([
                 'user_id' => User::where('email', $request->email)->value('id'),

@@ -22,6 +22,7 @@ class ContactRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:20'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['required', 'string', 'max:5000'],
+            'recaptcha_token' => ['nullable', 'string'],
         ];
     }
 }
