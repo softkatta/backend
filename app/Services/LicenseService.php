@@ -241,7 +241,7 @@ class LicenseService
         $this->recordHistory($license, 'domains_reset', [], $actorId);
 
         // Domain transfer requires re-activation — revoke all install tokens.
-        app(CompanyLicenseService::class)->revokeAllInstallations($license, $actorId);
+        $this->revokeRemoteAccess($license, $actorId);
 
         return $license->fresh();
     }
@@ -250,7 +250,7 @@ class LicenseService
     {
         $license->update(['force_logout_at' => now()]);
         $this->recordHistory($license, 'force_logout', [], $actorId);
-        app(CompanyLicenseService::class)->revokeAllInstallations($license, $actorId);
+        $this->revokeRemoteAccess($license, $actorId);
 
         return $license->fresh();
     }
@@ -260,6 +260,7 @@ class LicenseService
         $license->update([
             'is_product_active' => true,
             'deactivated_at' => null,
+            'force_logout_at' => null,
         ]);
         $this->recordHistory($license, 'product_activated', [], $actorId);
 
@@ -271,10 +272,21 @@ class LicenseService
         $license->update([
             'is_product_active' => false,
             'deactivated_at' => now(),
+            'force_logout_at' => now(),
         ]);
         $this->recordHistory($license, 'product_deactivated', [], $actorId);
+        $this->revokeRemoteAccess($license, $actorId);
 
         return $license->fresh();
+    }
+
+    /**
+     * Kill install tokens so the next product heartbeat/verify fails immediately.
+     * SoftKatta cron does not push to products — products must poll; this removes their valid tokens.
+     */
+    public function revokeRemoteAccess(LicenseKey $license, ?int $actorId = null): void
+    {
+        app(CompanyLicenseService::class)->revokeAllInstallations($license, $actorId);
     }
 
     public function recordHistory(LicenseKey $license, string $event, array $meta = [], ?int $actorId = null): void
@@ -323,7 +335,8 @@ class LicenseService
             'modules' => $modules,
             'addons' => $limits['addons'] ?? [],
             'api' => [
-                'refresh_after' => 86400,
+                // Products should re-check often so admin suspend/deactivate takes effect quickly.
+                'refresh_after' => 300,
             ],
             'subscription' => [
                 'id' => $license->subscription?->id,
@@ -359,35 +372,66 @@ class LicenseService
         ];
     }
 
-    public function suspend(LicenseKey $license, string $reason = ''): LicenseKey
+    public function suspend(LicenseKey $license, string $reason = '', ?int $actorId = null): LicenseKey
     {
         $license->update([
-            'status'       => LicenseStatus::Suspended,
-            'suspended_at' => now(),
+            'status'           => LicenseStatus::Suspended,
+            'suspended_at'     => now(),
+            'force_logout_at'  => now(),
+            'is_product_active'=> false,
+            'deactivated_at'   => now(),
         ]);
+        $this->recordHistory($license, 'suspended', array_filter(['reason' => $reason]), $actorId);
+        $this->revokeRemoteAccess($license, $actorId);
 
         return $license->fresh();
     }
 
-    public function revoke(LicenseKey $license, string $reason = ''): LicenseKey
+    public function revoke(LicenseKey $license, string $reason = '', ?int $actorId = null): LicenseKey
     {
         $license->update([
-            'status'        => LicenseStatus::Revoked,
-            'revoked_at'    => now(),
-            'revoke_reason' => $reason,
+            'status'           => LicenseStatus::Revoked,
+            'revoked_at'       => now(),
+            'revoke_reason'    => $reason,
+            'force_logout_at'  => now(),
+            'is_product_active'=> false,
+            'deactivated_at'   => now(),
         ]);
+        $this->recordHistory($license, 'revoked', array_filter(['reason' => $reason]), $actorId);
+        $this->revokeRemoteAccess($license, $actorId);
 
         return $license->fresh();
     }
 
-    public function activate(LicenseKey $license): LicenseKey
+    public function activate(LicenseKey $license, ?int $actorId = null): LicenseKey
     {
         $license->update([
-            'status'       => LicenseStatus::Active,
-            'activated_at' => $license->activated_at ?? now(),
-            'suspended_at' => null,
-            'revoked_at'   => null,
+            'status'            => LicenseStatus::Active,
+            'activated_at'      => $license->activated_at ?? now(),
+            'suspended_at'      => null,
+            'revoked_at'        => null,
+            'force_logout_at'   => null,
+            'is_product_active' => true,
+            'deactivated_at'    => null,
         ]);
+        $this->recordHistory($license, 'activated', [], $actorId);
+
+        return $license->fresh();
+    }
+
+    /**
+     * Mark license expired and kill remote sessions (used by schedule + admin flows).
+     */
+    public function markExpired(LicenseKey $license, ?int $actorId = null): LicenseKey
+    {
+        $license->update([
+            'status'           => LicenseStatus::Expired,
+            'force_logout_at'  => now(),
+            'is_product_active'=> false,
+            'deactivated_at'   => now(),
+        ]);
+        $this->recordHistory($license, 'expired', [], $actorId);
+        $this->revokeRemoteAccess($license, $actorId);
 
         return $license->fresh();
     }

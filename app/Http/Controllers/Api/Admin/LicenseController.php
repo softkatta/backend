@@ -128,9 +128,9 @@ class LicenseController extends BaseApiController
      */
     public function suspend(Request $request, LicenseKey $license): JsonResponse
     {
-        $this->licenseService->suspend($license);
+        $this->licenseService->suspend($license, '', auth()->id());
 
-        return $this->success(null, 'License suspended.');
+        return $this->success(null, 'License suspended. Product sessions revoked.');
     }
 
     /**
@@ -142,9 +142,9 @@ class LicenseController extends BaseApiController
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $this->licenseService->revoke($license, $validated['reason'] ?? '');
+        $this->licenseService->revoke($license, $validated['reason'] ?? '', auth()->id());
 
-        return $this->success(null, 'License revoked.');
+        return $this->success(null, 'License revoked. Product sessions revoked.');
     }
 
     /**
@@ -152,9 +152,9 @@ class LicenseController extends BaseApiController
      */
     public function activateLicense(LicenseKey $license): JsonResponse
     {
-        $this->licenseService->activate($license);
+        $this->licenseService->activate($license, auth()->id());
 
-        return $this->success(null, 'License activated.');
+        return $this->success(null, 'License activated. Customer must re-activate the product installation.');
     }
 
     public function resetDomains(LicenseKey $license): JsonResponse

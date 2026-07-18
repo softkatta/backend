@@ -251,6 +251,48 @@ class CompanyApiLicenseTest extends TestCase
             ->assertJsonPath('error_code', 'INVALID_INSTALL_TOKEN');
     }
 
+    public function test_suspend_revokes_installations_and_blocks_verify(): void
+    {
+        $activate = $this->signedJson('POST', '/api/v1/company/activate', [
+            'license_key' => $this->license->license_key,
+        ], [
+            'domain' => 'study.local',
+            'installation_id' => '',
+            'fingerprint' => hash('sha256', 'server-suspend'),
+        ])->assertOk();
+
+        $installationId = $activate->json('data.installation_id');
+        $installToken = $activate->json('data.install_token');
+
+        app(\App\Services\LicenseService::class)->suspend($this->license->fresh());
+
+        $this->assertTrue(
+            LicenseInstallation::query()
+                ->where('installation_id', $installationId)
+                ->whereNotNull('revoked_at')
+                ->exists()
+        );
+
+        $this->signedJson('POST', '/api/v1/company/verify', [], [
+            'domain' => 'study.local',
+            'installation_id' => $installationId,
+            'fingerprint' => hash('sha256', 'server-suspend'),
+            'install_token' => $installToken,
+        ])
+            ->assertStatus(401)
+            ->assertJsonPath('error_code', 'INVALID_INSTALL_TOKEN');
+
+        $this->signedJson('POST', '/api/v1/company/activate', [
+            'license_key' => $this->license->license_key,
+        ], [
+            'domain' => 'study.local',
+            'installation_id' => '',
+            'fingerprint' => hash('sha256', 'server-suspend'),
+        ])
+            ->assertStatus(403)
+            ->assertJsonPath('error_code', 'SUSPENDED_LICENSE');
+    }
+
     /**
      * @param  array<string, mixed>  $body
      * @param  array{domain?: string, installation_id?: string, fingerprint?: string, install_token?: string, nonce?: string}  $meta

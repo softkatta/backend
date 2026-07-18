@@ -105,6 +105,11 @@ class AutomationService
                 $subscription->update(['status' => SubscriptionStatus::Expired]);
                 $count++;
 
+                $license = $subscription->licenseKey;
+                if ($license && $license->status === LicenseStatus::Active) {
+                    app(LicenseService::class)->markExpired($license);
+                }
+
                 $product = $subscription->product?->name ?? 'your SoftKatta product';
                 $plan = $subscription->plan?->name ?? 'plan';
                 $ended = $subscription->ends_at?->timezone(config('app.timezone'))->format('d M Y') ?? 'today';
@@ -142,7 +147,7 @@ class AutomationService
             ->where('expires_at', '<', now())
             ->orderBy('id')
             ->eachById(function (LicenseKey $license) use (&$count): void {
-                $license->update(['status' => LicenseStatus::Expired]);
+                app(LicenseService::class)->markExpired($license);
                 $count++;
 
                 $product = $license->product?->name ?? 'your SoftKatta product';

@@ -548,7 +548,7 @@ class CompanyLicenseService
             'addons' => $signed['addons'] ?? [],
             'plan' => $plan?->name ?? $plan?->slug ?? null,
             'expires_at' => $license->expires_at?->toIso8601String(),
-            'refresh_interval' => $signed['api']['refresh_after'] ?? 86400,
+            'refresh_interval' => $signed['api']['refresh_after'] ?? 300,
         ];
     }
 

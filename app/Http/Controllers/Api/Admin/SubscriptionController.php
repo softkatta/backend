@@ -140,7 +140,25 @@ class SubscriptionController extends BaseApiController
             }
         }
 
+        $previousStatus = $subscription->status?->value ?? (string) $subscription->status;
         $subscription->update($data);
+        $subscription->refresh();
+
+        $licenseService = app(LicenseService::class);
+        $license = $subscription->licenseKey;
+        $newStatus = $subscription->status?->value ?? (string) $subscription->status;
+
+        if ($license && isset($data['status']) && $newStatus !== $previousStatus) {
+            if ($newStatus === SubscriptionStatus::Suspend->value) {
+                $licenseService->suspend($license, 'Subscription suspended', auth()->id());
+            } elseif ($newStatus === SubscriptionStatus::Expired->value) {
+                $licenseService->markExpired($license, auth()->id());
+            } elseif (in_array($newStatus, [SubscriptionStatus::Active->value, SubscriptionStatus::Trial->value, SubscriptionStatus::ExpiringSoon->value], true)
+                && in_array($previousStatus, [SubscriptionStatus::Suspend->value, SubscriptionStatus::Expired->value, SubscriptionStatus::Pending->value], true)
+            ) {
+                $licenseService->activate($license, auth()->id());
+            }
+        }
 
         return $this->success(
             $subscription->fresh()->load(['user', 'product', 'plan', 'tenant']),
