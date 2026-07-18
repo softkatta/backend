@@ -382,8 +382,9 @@ class LicenseService
             'deactivated_at'   => now(),
         ]);
         $this->recordHistory($license, 'suspended', array_filter(['reason' => $reason]), $actorId);
-        // Tokens stay valid cryptographically; Company API rejects while status=suspended.
-        // Admin Activate restores access automatically on the next product heartbeat/verify.
+        // Revoke install tokens so the next product API/heartbeat fails immediately (no local OK-cache).
+        // Admin Activate restores automatically via product heartbeat auto-reactivate.
+        $this->revokeRemoteAccess($license, $actorId);
 
         return $license->fresh();
     }
