@@ -12,10 +12,12 @@ use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeExitRecord;
 use App\Services\EmployeeAccountService;
+use App\Services\EmployeeIdCardService;
 use App\Services\EmployeeService;
 use App\Services\HrStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 
 class EmployeeController extends BaseApiController
@@ -135,6 +137,25 @@ class EmployeeController extends BaseApiController
             'download_url' => url("/api/v1/hr/documents/download?token={$token}"),
             'original_name' => $document->original_name,
         ]);
+    }
+
+    public function downloadIdCard(Employee $employee, EmployeeIdCardService $idCards): Response
+    {
+        $pdf = $idCards->generateFor($employee);
+        $code = preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($employee->employee_code ?: $employee->id));
+
+        return $pdf->download("id-card-{$code}.pdf");
+    }
+
+    public function exportIdCards(Request $request, EmployeeIdCardService $idCards): Response
+    {
+        $data = $request->validate([
+            'status' => ['nullable', 'string', Rule::in(EmployeeStatus::values())],
+        ]);
+
+        $pdf = $idCards->generateForAll($data['status'] ?? null);
+
+        return $pdf->download('employee-id-cards-'.now()->format('Y-m-d').'.pdf');
     }
 
     public function initiateExit(Request $request, Employee $employee, EmployeeService $service): JsonResponse

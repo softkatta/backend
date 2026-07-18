@@ -142,42 +142,149 @@ enum EmployeeDocumentCategory: string
     public function label(): string
     {
         return match ($this) {
-            self::OfferLetter => 'Offer letter (from company)',
-            self::AppointmentLetter => 'Appointment letter',
-            self::JoiningForm => 'Joining form',
-            self::Aadhaar => 'ID proof — Aadhaar',
-            self::Pan => 'ID proof — PAN',
-            self::AddressProof => 'Address proof',
-            self::Education => 'Educational documents',
-            self::Experience => 'Previous company experience / relieving letter',
-            self::Photo => 'Passport size photos',
-            self::BankProof => 'Cancelled cheque / bank passbook',
-            self::PfUanDocument => 'UAN / PF details (if applicable)',
-            self::EsicDocument => 'ESIC details (if applicable)',
-            self::Nda => 'NDA / confidentiality agreement',
-            self::Declaration => 'Employee declaration form',
-            self::IdCard => 'Employee ID card',
+            self::OfferLetter => 'Offer letter (Company provides)',
+            self::AppointmentLetter => 'Appointment letter (Company provides)',
+            self::JoiningForm => 'Joining form (Company provides)',
+            self::Aadhaar => 'ID proof — Aadhaar (Employee submits)',
+            self::Pan => 'ID proof — PAN (Employee submits)',
+            self::AddressProof => 'Address proof (Employee submits)',
+            self::Education => 'Educational documents (Employee submits)',
+            self::Experience => 'Previous experience / relieving letter (Employee submits)',
+            self::Photo => 'Passport size photos (Employee submits)',
+            self::BankProof => 'Cancelled cheque / bank passbook (Employee submits)',
+            self::PfUanDocument => 'UAN / PF details (Employee submits)',
+            self::EsicDocument => 'ESIC details (Employee submits)',
+            self::Nda => 'NDA / confidentiality agreement (Company provides)',
+            self::Declaration => 'Employee declaration form (Company provides)',
+            self::IdCard => 'Employee ID card (Company provides)',
 
-            self::LeaveApplication => 'Leave application',
-            self::AttendanceRecords => 'Attendance records',
-            self::PerformanceReview => 'Appraisal / performance form',
-            self::Promotion => 'Promotion letter',
-            self::IncrementLetter => 'Increment letter',
-            self::TransferLetter => 'Transfer letter (if applicable)',
-            self::Warning => 'Warning letter (if applicable)',
-            self::Training => 'Training certificates',
-            self::SalaryRevision => 'Salary revision letter',
+            self::LeaveApplication => 'Leave application (Employee submits)',
+            self::AttendanceRecords => 'Attendance records (Employee submits)',
+            self::PerformanceReview => 'Appraisal / performance form (Company provides)',
+            self::Promotion => 'Promotion letter (Company provides)',
+            self::IncrementLetter => 'Increment letter (Company provides)',
+            self::TransferLetter => 'Transfer letter (Company provides)',
+            self::Warning => 'Warning letter (Company provides)',
+            self::Training => 'Training certificates (Company provides)',
+            self::SalaryRevision => 'Salary revision letter (Company provides)',
 
-            self::ResignationForm => 'Resignation letter',
-            self::ResignationAcceptance => 'Resignation acceptance letter',
-            self::NoDues => 'No dues form',
-            self::AssetHandover => 'Asset handover form (laptop, ID card, etc.)',
-            self::ExitInterview => 'Exit interview form',
-            self::FullAndFinal => 'Full & final settlement',
-            self::ExperienceLetter => 'Experience letter',
-            self::RelievingLetter => 'Relieving letter',
-            self::Form16 => 'Form 16 (income tax)',
-            self::PfGratuity => 'PF / gratuity documents (if applicable)',
+            self::ResignationForm => 'Resignation letter (Employee submits)',
+            self::ResignationAcceptance => 'Resignation acceptance letter (Company provides)',
+            self::NoDues => 'No dues form (Company provides)',
+            self::AssetHandover => 'Asset handover form (Company provides)',
+            self::ExitInterview => 'Exit interview form (Company provides)',
+            self::FullAndFinal => 'Full & final settlement (Company provides)',
+            self::ExperienceLetter => 'Experience letter (Company provides)',
+            self::RelievingLetter => 'Relieving letter (Company provides)',
+            self::Form16 => 'Form 16 — income tax (Company provides)',
+            self::PfGratuity => 'PF / gratuity documents (Company provides)',
         };
+    }
+
+    /**
+     * Who is expected to provide this document in the HR process.
+     */
+    public function providedBy(): EmployeeDocumentProvider
+    {
+        return match ($this) {
+            // Joining — employee submits KYC / personal proofs
+            self::Aadhaar,
+            self::Pan,
+            self::AddressProof,
+            self::Education,
+            self::Experience,
+            self::Photo,
+            self::BankProof,
+            self::PfUanDocument,
+            self::EsicDocument,
+            // Self-service
+            self::LeaveApplication,
+            self::AttendanceRecords,
+            // Exit — employee starts with resignation letter
+            self::ResignationForm => EmployeeDocumentProvider::Employee,
+
+            // Everything else is issued by the company
+            default => EmployeeDocumentProvider::Company,
+        };
+    }
+
+    /**
+     * Process roles that should receive this document by email.
+     * Always includes company when non-empty (except leave/attendance).
+     *
+     * @return array<int, string> company|employee|hr|recruiter|founder|it_admin|accounts|reporting_manager
+     */
+    public function emailRecipients(): array
+    {
+        return match ($this) {
+            self::LeaveApplication,
+            self::AttendanceRecords => [],
+
+            // Joining — Recruiter selects, Founder approves, HR sends offer
+            self::OfferLetter => ['company', 'employee', 'hr', 'recruiter', 'founder'],
+
+            // Joining — HR verifies employee documents
+            self::Aadhaar,
+            self::Pan,
+            self::AddressProof,
+            self::Education,
+            self::Experience,
+            self::Photo,
+            self::BankProof,
+            self::PfUanDocument,
+            self::EsicDocument => ['company', 'employee', 'hr'],
+
+            // Joining — HR appointment; IT provisions access; RM assigns project
+            self::AppointmentLetter => ['company', 'employee', 'hr', 'it_admin', 'reporting_manager'],
+
+            // Joining — HR onboarding forms
+            self::JoiningForm,
+            self::Nda,
+            self::Declaration => ['company', 'employee', 'hr'],
+
+            // Joining — IT Admin ID / access
+            self::IdCard => ['company', 'employee', 'hr', 'it_admin'],
+
+            // Joining / employment — Reporting Manager assign / awareness
+            self::Training => ['company', 'employee', 'hr', 'reporting_manager'],
+
+            // Employment letters
+            self::PerformanceReview,
+            self::Promotion,
+            self::IncrementLetter,
+            self::TransferLetter,
+            self::Warning,
+            self::SalaryRevision => ['company', 'employee', 'hr', 'reporting_manager'],
+
+            // Resignation — Employee submits; Manager + HR see it
+            self::ResignationForm => ['company', 'employee', 'hr', 'reporting_manager'],
+
+            // Resignation — HR manages exit; Manager for KT/notice
+            self::ResignationAcceptance,
+            self::ExitInterview => ['company', 'employee', 'hr', 'reporting_manager'],
+
+            // Resignation — IT disables access / assets
+            self::NoDues,
+            self::AssetHandover => ['company', 'employee', 'hr', 'it_admin', 'reporting_manager'],
+
+            // Resignation — Accounts full & final / tax
+            self::FullAndFinal,
+            self::Form16,
+            self::PfGratuity => ['company', 'employee', 'hr', 'accounts'],
+
+            // Resignation — HR issues letters
+            self::ExperienceLetter,
+            self::RelievingLetter => ['company', 'employee', 'hr'],
+        };
+    }
+
+    /**
+     * @deprecated Use emailRecipients()
+     */
+    public function emailAudience(): EmployeeDocumentEmailAudience
+    {
+        return $this->emailRecipients() === []
+            ? EmployeeDocumentEmailAudience::None
+            : EmployeeDocumentEmailAudience::CompanyAndMember;
     }
 }

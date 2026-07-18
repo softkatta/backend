@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api\Employee;
 use App\Enums\EmployeeDocumentCategory;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\EmployeeDocument;
+use App\Services\EmployeeIdCardService;
 use App\Services\EmployeePortalService;
 use App\Services\HrStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 
 class DocumentController extends BaseApiController
@@ -59,5 +61,14 @@ class DocumentController extends BaseApiController
             'download_url' => url("/api/v1/hr/documents/download?token={$token}"),
             'original_name' => $document->original_name,
         ]);
+    }
+
+    public function downloadIdCard(Request $request, EmployeeIdCardService $idCards): Response
+    {
+        $employee = $this->employeeFor($request);
+        $pdf = $idCards->generateFor($employee);
+        $code = preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($employee->employee_code ?: $employee->id));
+
+        return $pdf->download("id-card-{$code}.pdf");
     }
 }

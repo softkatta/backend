@@ -214,6 +214,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('documents', [EmployeeDocumentController::class, 'index'])->middleware('permission:employee.documents.view');
         Route::post('documents', [EmployeeDocumentController::class, 'store'])->middleware('permission:employee.documents.upload');
+        Route::get('documents/id-card', [EmployeeDocumentController::class, 'downloadIdCard'])->middleware('permission:employee.documents.view');
         Route::get('documents/{document}/download', [EmployeeDocumentController::class, 'download'])->middleware('permission:employee.documents.download');
 
         Route::get('leave', [EmployeeLeaveController::class, 'index'])->middleware('permission:employee.leave.view');
@@ -377,10 +378,12 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('job-applications/{job_application}', [JobApplicationController::class, 'destroy'])->middleware('permission:hr.applications.manage');
         Route::get('employees', [EmployeeController::class, 'index'])->middleware('permission:hr.employees.view');
         Route::post('employees', [EmployeeController::class, 'store'])->middleware('permission:hr.employees.manage');
+        Route::get('employees/id-cards', [EmployeeController::class, 'exportIdCards'])->middleware('permission:hr.employees.view');
         Route::get('employees/{employee}', [EmployeeController::class, 'show'])->middleware('permission:hr.employees.view');
         Route::put('employees/{employee}', [EmployeeController::class, 'update'])->middleware('permission:hr.employees.manage');
         Route::patch('employees/{employee}', [EmployeeController::class, 'update'])->middleware('permission:hr.employees.manage');
         Route::delete('employees/{employee}', [EmployeeController::class, 'destroy'])->middleware('permission:hr.employees.delete');
+        Route::get('employees/{employee}/id-card', [EmployeeController::class, 'downloadIdCard'])->middleware('permission:hr.employees.view');
         Route::post('employees/{employee}/documents', [EmployeeController::class, 'uploadDocument'])->middleware('permission:hr.employees.documents');
         Route::get('employees/{employee}/documents/{document}/download', [EmployeeController::class, 'downloadDocument'])->middleware('permission:hr.employees.documents');
         Route::post('employees/{employee}/exit', [EmployeeController::class, 'initiateExit'])->middleware('permission:hr.employees.exit');
@@ -438,7 +441,9 @@ Route::prefix('v1')->group(function (): void {
         Route::post('job-applications/{job_application}/convert-employee', [JobApplicationController::class, 'convertToEmployee']);
         Route::get('job-applications/{job_application}/documents/{document}/download', [JobApplicationController::class, 'downloadDocument']);
         Route::apiResource('job-applications', JobApplicationController::class)->except(['store']);
+        Route::get('employees/id-cards', [EmployeeController::class, 'exportIdCards']);
         Route::apiResource('employees', EmployeeController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+        Route::get('employees/{employee}/id-card', [EmployeeController::class, 'downloadIdCard']);
         Route::post('employees/{employee}/documents', [EmployeeController::class, 'uploadDocument']);
         Route::get('employees/{employee}/documents/{document}/download', [EmployeeController::class, 'downloadDocument']);
         Route::post('employees/{employee}/exit', [EmployeeController::class, 'initiateExit']);

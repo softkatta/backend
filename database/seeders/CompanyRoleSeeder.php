@@ -15,6 +15,7 @@ class CompanyRoleSeeder extends Seeder
     {
         return [
             ['name' => 'Founder / Owner', 'category' => 'Leadership'],
+            ['name' => 'Director', 'category' => 'Leadership'],
             ['name' => 'CEO (Chief Executive Officer)', 'category' => 'Leadership'],
             ['name' => 'CTO (Chief Technology Officer)', 'category' => 'Leadership'],
             ['name' => 'Project Manager', 'category' => 'Engineering & Delivery'],
@@ -24,6 +25,7 @@ class CompanyRoleSeeder extends Seeder
             ['name' => 'UI/UX Designer', 'category' => 'Design'],
             ['name' => 'QA Tester', 'category' => 'Quality & Infrastructure'],
             ['name' => 'DevOps Engineer', 'category' => 'Quality & Infrastructure'],
+            ['name' => 'IT Admin', 'category' => 'Quality & Infrastructure'],
             ['name' => 'Business Analyst', 'category' => 'Business & Analysis'],
             ['name' => 'Sales Executive', 'category' => 'Sales & Marketing'],
             ['name' => 'Business Development Executive (BDE)', 'category' => 'Sales & Marketing'],

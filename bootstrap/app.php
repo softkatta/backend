@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureSiteNotInMaintenance;
 use App\Http\Middleware\EnsureTenantAccess;
 use App\Http\Middleware\RoleMiddleware;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -35,6 +36,44 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
+    })
+    ->withSchedule(function (Schedule $schedule): void {
+        /*
+         | Server वर फक्त एक cron ठेवा:
+         | * * * * * cd /path/to/backend && php artisan schedule:run >> /dev/null 2>&1
+         |
+         | खालील सर्व jobs त्या एका cron मधूनच चालतात.
+         */
+
+        $schedule->command('softkatta:automate --task=subscriptions')
+            ->hourly()
+            ->withoutOverlapping()
+            ->name('softkatta-subscriptions');
+
+        $schedule->command('softkatta:automate --task=licenses')
+            ->hourly()
+            ->withoutOverlapping()
+            ->name('softkatta-licenses');
+
+        $schedule->command('softkatta:automate --task=invoices')
+            ->dailyAt('01:00')
+            ->withoutOverlapping()
+            ->name('softkatta-invoices');
+
+        $schedule->command('softkatta:automate --task=payments')
+            ->dailyAt('01:15')
+            ->withoutOverlapping()
+            ->name('softkatta-payments');
+
+        $schedule->command('softkatta:automate --task=cleanup')
+            ->dailyAt('02:00')
+            ->withoutOverlapping()
+            ->name('softkatta-cleanup');
+
+        $schedule->command('sanctum:prune-expired --hours=24')
+            ->dailyAt('02:30')
+            ->withoutOverlapping()
+            ->name('sanctum-prune');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

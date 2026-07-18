@@ -186,9 +186,16 @@ class SmtpMailService
 
     /**
      * @param  array<string, string>  $details
+     * @param  array<int, array{path: string, name?: string, mime?: string}>  $attachments
      */
-    public function send(string $to, string $subject, string $bodyPlain, ?string $title = null, array $details = []): void
-    {
+    public function send(
+        string $to,
+        string $subject,
+        string $bodyPlain,
+        ?string $title = null,
+        array $details = [],
+        array $attachments = [],
+    ): void {
         $integration = $this->activeIntegration();
         $smtp = $this->resolveConfig($integration);
 
@@ -198,7 +205,7 @@ class SmtpMailService
             );
         }
 
-        $this->sendTemplated($smtp, $to, $subject, $title ?? $subject, $bodyPlain, $details);
+        $this->sendTemplated($smtp, $to, $subject, $title ?? $subject, $bodyPlain, $details, $attachments);
     }
 
     public function sendOtp(string $to, string $subject, string $title, string $code, string $messagePlain): void
@@ -256,9 +263,17 @@ class SmtpMailService
     /**
      * @param  array{host: string, port: int, username: string, password: string, encryption: ?string, from_address: string, from_name: string}  $smtp
      * @param  array<string, string>  $details
+     * @param  array<int, array{path: string, name?: string, mime?: string}>  $attachments
      */
-    private function sendTemplated(array $smtp, string $to, string $subject, string $title, string $bodyPlain, array $details = []): void
-    {
+    private function sendTemplated(
+        array $smtp,
+        string $to,
+        string $subject,
+        string $title,
+        string $bodyPlain,
+        array $details = [],
+        array $attachments = [],
+    ): void {
         $this->applyConfig($smtp);
 
         $subject = $this->templates->formatSubject($title);
@@ -269,12 +284,24 @@ class SmtpMailService
             $details,
         );
 
-        Mail::send([], [], function ($message) use ($to, $subject, $bodyPlain, $html, $smtp): void {
+        Mail::send([], [], function ($message) use ($to, $subject, $bodyPlain, $html, $smtp, $attachments): void {
             $message->to($to)
                 ->subject($subject)
                 ->from($smtp['from_address'], $smtp['from_name'])
                 ->html($html)
                 ->text($bodyPlain);
+
+            foreach ($attachments as $attachment) {
+                $path = $attachment['path'] ?? '';
+                if ($path === '' || ! is_file($path)) {
+                    continue;
+                }
+
+                $message->attach($path, array_filter([
+                    'as' => $attachment['name'] ?? null,
+                    'mime' => $attachment['mime'] ?? null,
+                ]));
+            }
         });
     }
 

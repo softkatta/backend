@@ -19,6 +19,7 @@ class EmployeeService
     public function __construct(
         private readonly HrStorageService $storage,
         private readonly EmployeeAccountService $accounts,
+        private readonly EmployeeDocumentMailService $documentMail,
     ) {
     }
 
@@ -131,11 +132,15 @@ class EmployeeService
     {
         $stored = $this->storage->storeEmployeeDocument($file, $employee->id, $category);
 
-        return EmployeeDocument::create([
+        $document = EmployeeDocument::create([
             'employee_id' => $employee->id,
             'notes' => $notes,
             ...$stored,
         ]);
+
+        $this->documentMail->notifyUploaded($employee->fresh(['user']), $document);
+
+        return $document;
     }
 
     /**
