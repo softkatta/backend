@@ -87,12 +87,30 @@ class CompanyLicenseService
         $existing = null;
         if ($existingInstallationId !== '') {
             $existing = $activeInstallations->firstWhere('installation_id', $existingInstallationId);
+
+            // Re-activate after SoftKatta suspend: revive the same revoked installation row.
+            if (! $existing) {
+                $existing = LicenseInstallation::query()
+                    ->where('license_key_id', $license->id)
+                    ->where('installation_id', $existingInstallationId)
+                    ->first();
+            }
         }
 
         if (! $existing) {
             $existing = $activeInstallations->first(function (LicenseInstallation $row) use ($domain, $fingerprint) {
                 return $row->domain === $domain && $row->server_fingerprint === $fingerprint;
             });
+        }
+
+        if (! $existing) {
+            $existing = LicenseInstallation::query()
+                ->where('license_key_id', $license->id)
+                ->where('domain', $domain)
+                ->where('server_fingerprint', $fingerprint)
+                ->whereNotNull('revoked_at')
+                ->latest('id')
+                ->first();
         }
 
         if (! $existing && $license->max_devices > 0 && $activeInstallations->count() >= $license->max_devices) {

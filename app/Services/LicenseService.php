@@ -416,7 +416,16 @@ class LicenseService
         ]);
         $this->recordHistory($license, 'activated', [], $actorId);
 
-        return $license->fresh();
+        // If subscription was suspended with the license, restore it so Company API activate succeeds.
+        $subscription = $license->subscription;
+        if ($subscription && $subscription->status === SubscriptionStatus::Suspend) {
+            $subscription->update([
+                'status' => SubscriptionStatus::Active,
+                'cancelled_at' => null,
+            ]);
+        }
+
+        return $license->fresh(['subscription']);
     }
 
     /**
