@@ -275,14 +275,14 @@ class LicenseService
             'force_logout_at' => now(),
         ]);
         $this->recordHistory($license, 'product_deactivated', [], $actorId);
-        $this->revokeRemoteAccess($license, $actorId);
+        // Keep install tokens — SoftKatta Activate / product activate restores access automatically via heartbeat.
 
         return $license->fresh();
     }
 
     /**
-     * Kill install tokens so the next product heartbeat/verify fails immediately.
-     * SoftKatta cron does not push to products — products must poll; this removes their valid tokens.
+     * Kill install tokens (Force Logout / permanent revoke / domain reset).
+     * Do not use this for Suspend — suspend must be reversible without product-side re-activate.
      */
     public function revokeRemoteAccess(LicenseKey $license, ?int $actorId = null): void
     {
@@ -382,7 +382,8 @@ class LicenseService
             'deactivated_at'   => now(),
         ]);
         $this->recordHistory($license, 'suspended', array_filter(['reason' => $reason]), $actorId);
-        $this->revokeRemoteAccess($license, $actorId);
+        // Tokens stay valid cryptographically; Company API rejects while status=suspended.
+        // Admin Activate restores access automatically on the next product heartbeat/verify.
 
         return $license->fresh();
     }

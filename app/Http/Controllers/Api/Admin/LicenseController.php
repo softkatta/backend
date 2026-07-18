@@ -130,7 +130,7 @@ class LicenseController extends BaseApiController
     {
         $this->licenseService->suspend($license, '', auth()->id());
 
-        return $this->success(null, 'License suspended. Product sessions revoked.');
+        return $this->success(null, 'License suspended. Product will stop on next heartbeat.');
     }
 
     /**
@@ -154,7 +154,7 @@ class LicenseController extends BaseApiController
     {
         $this->licenseService->activate($license, auth()->id());
 
-        return $this->success(null, 'License activated. Customer must re-activate the product installation.');
+        return $this->success(null, 'License activated. Product will restore on next heartbeat.');
     }
 
     public function resetDomains(LicenseKey $license): JsonResponse
