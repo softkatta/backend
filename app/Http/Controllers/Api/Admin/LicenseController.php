@@ -154,7 +154,7 @@ class LicenseController extends BaseApiController
     {
         $this->licenseService->activate($license, auth()->id());
 
-        return $this->success(null, 'License activated. Product restores on next heartbeat.');
+        return $this->success(null, 'License activated. Product restores on next API check (install sessions revived).');
     }
 
     public function resetDomains(LicenseKey $license): JsonResponse
@@ -174,6 +174,19 @@ class LicenseController extends BaseApiController
         return $this->success(
             $this->licenseService->enrichForApi($updated->load(['product', 'user', 'subscription.plan'])),
             'Product force logout issued.'
+        );
+    }
+
+    /**
+     * POST /api/v1/admin/licenses/{license}/regenerate
+     */
+    public function regenerate(LicenseKey $license): JsonResponse
+    {
+        $updated = $this->licenseService->regenerateKey($license, auth()->id());
+
+        return $this->success(
+            $this->licenseService->enrichForApi($updated),
+            'License key regenerated. Share the new key with the customer — product must re-activate.'
         );
     }
 

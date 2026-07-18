@@ -160,6 +160,10 @@ class CompanyLicenseService
             'last_verified_at' => now(),
             'registered_ip' => $request->ip(),
             'activation_count' => $license->activation_count + 1,
+            // Product-side Restore after Admin Activate — clear any leftover force-logout fence.
+            'force_logout_at' => null,
+            'is_product_active' => true,
+            'deactivated_at' => null,
         ]);
 
         $this->licenseService->recordHistory($license, 'installation_activated', [

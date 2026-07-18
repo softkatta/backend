@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\LicenseStatus;
 use App\Enums\SubscriptionStatus;
 use App\Models\LicenseHistory;
+use App\Models\LicenseInstallation;
 use App\Models\LicenseKey;
 use App\Models\Product;
 use App\Models\Subscription;
@@ -257,6 +258,32 @@ class LicenseService
         return $license->fresh();
     }
 
+    /**
+     * Issue a brand-new license key string for the same subscription/customer.
+     * Old key stops working immediately; product must re-activate with the new key.
+     */
+    public function regenerateKey(LicenseKey $license, ?int $actorId = null): LicenseKey
+    {
+        $license->loadMissing('product');
+        $oldKey = $license->license_key;
+        $newKey = $this->generateKey($license->product);
+
+        $license->update([
+            'license_key' => $newKey,
+            'allowed_domains' => [],
+            'activation_count' => 0,
+            'force_logout_at' => now(),
+        ]);
+
+        $this->revokeRemoteAccess($license, $actorId);
+        $this->recordHistory($license, 'key_regenerated', [
+            'old_key' => $oldKey,
+            'new_key' => $newKey,
+        ], $actorId);
+
+        return $license->fresh(['product', 'user', 'subscription.plan']);
+    }
+
     public function activateProduct(LicenseKey $license, ?int $actorId = null): LicenseKey
     {
         $license->update([
@@ -384,9 +411,9 @@ class LicenseService
             'deactivated_at'   => now(),
         ]);
         $this->recordHistory($license, 'suspended', array_filter(['reason' => $reason]), $actorId);
-        // Revoke install tokens so the next product API/heartbeat fails immediately (no local OK-cache).
-        // Admin Activate restores automatically via product heartbeat auto-reactivate.
-        $this->revokeRemoteAccess($license, $actorId);
+        // Keep install tokens. Company API verify returns SUSPENDED_LICENSE immediately;
+        // Admin Activate restores the same sessions without product-side re-activate.
+        // (Force Logout / Revoke / Reset Installations still kill tokens on purpose.)
 
         return $license->fresh();
     }
@@ -428,6 +455,16 @@ class LicenseService
                 'cancelled_at' => null,
             ]);
         }
+
+        // Revive sessions killed by older Suspend builds that revoked install tokens.
+        // Same token hashes stay valid — product recovers on next verify without Restore access.
+        LicenseInstallation::query()
+            ->where('license_key_id', $license->id)
+            ->whereNotNull('revoked_at')
+            ->update([
+                'revoked_at' => null,
+                'last_verified_at' => now(),
+            ]);
 
         return $license->fresh(['subscription']);
     }
