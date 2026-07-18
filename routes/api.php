@@ -498,6 +498,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('licenses/{license}/reset-domains', [AdminLicenseController::class, 'resetDomains']);
         Route::post('licenses/{license}/force-logout', [AdminLicenseController::class, 'forceLogout']);
         Route::post('licenses/{license}/regenerate', [AdminLicenseController::class, 'regenerate']);
+        Route::post('licenses/{license}/notify-ready', [AdminLicenseController::class, 'notifyReady']);
         Route::get('licenses/{license}/activity', [AdminLicenseController::class, 'activity']);
         Route::get('licenses/{license}/history', [AdminLicenseController::class, 'history']);
         Route::get('licenses/{license}/installations', [AdminLicenseController::class, 'installations']);

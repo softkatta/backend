@@ -470,6 +470,124 @@ class LicenseService
     }
 
     /**
+     * After SoftKatta manually finishes product setup on the customer server,
+     * notify the customer that their product is ready (email + WhatsApp + in-app).
+     *
+     * @return array{
+     *     customer_name: string,
+     *     customer_email: string|null,
+     *     customer_phone: string|null,
+     *     product_name: string,
+     *     product_url: string|null,
+     *     channels: list<string>
+     * }
+     */
+    public function notifyProductReady(LicenseKey $license, ?string $productUrl = null, ?int $actorId = null): array
+    {
+        $license->loadMissing(['user', 'product']);
+        $user = $license->user;
+
+        if (! $user) {
+            throw new \InvalidArgumentException('This license has no linked customer account.');
+        }
+
+        if (! filled($user->email)) {
+            throw new \InvalidArgumentException('Customer email is required to send the product-ready notice.');
+        }
+
+        $productName = $license->product?->name ?? 'your SoftKatta product';
+        $firstName = explode(' ', trim((string) $user->name))[0] ?: 'there';
+        $domains = collect($license->allowed_domains ?? [])
+            ->filter()
+            ->values()
+            ->all();
+
+        $url = $this->normalizeProductUrl($productUrl);
+        if ($url === null && $domains !== []) {
+            $url = $this->normalizeProductUrl((string) $domains[0]);
+        }
+
+        $portalUrl = rtrim((string) env('FRONTEND_URL', config('app.url')), '/').'/login';
+
+        $messageLines = [
+            "Hi {$firstName},",
+            '',
+            "Good news — your {$productName} setup is complete and ready to use.",
+            '',
+            'License key: '.$license->license_key,
+        ];
+
+        if ($url) {
+            $messageLines[] = 'Product URL: '.$url;
+        }
+
+        if ($domains !== []) {
+            $messageLines[] = 'Registered domain(s): '.implode(', ', $domains);
+        }
+
+        $messageLines[] = '';
+        $messageLines[] = "SoftKatta portal: {$portalUrl}";
+        $messageLines[] = '';
+        $messageLines[] = 'If you need help signing in or activating the license, reply to this message or contact SoftKatta support.';
+        $messageLines[] = '';
+        $messageLines[] = '— SoftKatta Team';
+
+        $message = implode("\n", $messageLines);
+
+        $emailDetails = array_filter([
+            'Product' => $productName,
+            'License key' => $license->license_key,
+            'Product URL' => $url,
+            'Domain(s)' => $domains !== [] ? implode(', ', $domains) : null,
+            'SoftKatta portal' => $portalUrl,
+        ], fn ($value) => filled($value));
+
+        app(NotificationService::class)->send(
+            $user,
+            'product_ready',
+            "Your {$productName} is ready",
+            $message,
+            NotificationService::allChannels(),
+            [
+                'license_id' => $license->id,
+                'product_id' => $license->product_id,
+                'product_url' => $url,
+            ],
+            $emailDetails,
+        );
+
+        $this->recordHistory($license, 'product_ready_notified', [
+            'product_url' => $url,
+            'channels' => ['email', 'whatsapp', 'in_app'],
+        ], $actorId);
+
+        return [
+            'customer_name' => (string) $user->name,
+            'customer_email' => $user->email,
+            'customer_phone' => $user->phone,
+            'product_name' => $productName,
+            'product_url' => $url,
+            'channels' => ['email', 'whatsapp', 'in_app'],
+        ];
+    }
+
+    private function normalizeProductUrl(?string $url): ?string
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return null;
+        }
+
+        if (! preg_match('#^https?://#i', $url)) {
+            $url = 'https://'.ltrim($url, '/');
+        }
+
+        $url = rtrim($url, '/');
+
+        return filter_var($url, FILTER_VALIDATE_URL) ? $url : null;
+    }
+
+    /**
      * Mark license expired and kill remote sessions (used by schedule + admin flows).
      */
     public function markExpired(LicenseKey $license, ?int $actorId = null): LicenseKey

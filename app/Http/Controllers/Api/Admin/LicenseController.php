@@ -190,6 +190,29 @@ class LicenseController extends BaseApiController
         );
     }
 
+    /**
+     * POST /api/v1/admin/licenses/{license}/notify-ready
+     * After manual product setup on the customer server, email + WhatsApp the customer.
+     */
+    public function notifyReady(Request $request, LicenseKey $license): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_url' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $result = $this->licenseService->notifyProductReady(
+                $license,
+                $validated['product_url'] ?? null,
+                auth()->id(),
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
+
+        return $this->success($result, 'Customer notified: product is ready (email + WhatsApp).');
+    }
+
     public function activity(LicenseKey $license): JsonResponse
     {
         $logs = LicenseApiLog::query()
