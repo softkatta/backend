@@ -144,9 +144,11 @@ class CompanyLicenseService
         }
 
         if (! $existing && $license->max_devices > 0 && $activeInstallations->count() >= $license->max_devices) {
-            $this->log($integration, $request, $license, '/company/activate', false, 'INSTALLATION_LIMIT', 422, $domain, $fingerprint);
-
-            return $this->error('INSTALLATION_LIMIT', 'Maximum installations reached for this license.', 422);
+            // Restore access / re-activate: free slots on this license so the key can bind again.
+            foreach ($activeInstallations as $row) {
+                $row->update(['revoked_at' => now()]);
+            }
+            $activeInstallations = collect();
         }
 
         $installToken = LicenseInstallation::generateToken();
@@ -756,9 +758,9 @@ class CompanyLicenseService
         if ($subscription) {
             $tenant = $this->licenseService->resolveTenantForSubscription($subscription);
             if ($tenant) {
-                if ($forDomain === null || $tenant->allowsDeployDomain($forDomain, $product, $subscription) || ! $tenant->hasDeployDomains($product, $subscription)) {
-                    return $tenant;
-                }
+                // Always return the subscription tenant so domain mismatches surface as
+                // DOMAIN_NOT_AUTHORIZED (with assigned list), not TENANT_DOMAINS_REQUIRED.
+                return $tenant;
             }
         }
 
