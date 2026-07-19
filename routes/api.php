@@ -98,6 +98,7 @@ use App\Http\Controllers\Api\Public\SiteContentController;
 use App\Http\Controllers\Api\Public\SiteController;
 use App\Http\Controllers\Api\Public\SiteHomeSectionsController;
 use App\Http\Controllers\Api\Public\SiteMaintenanceController;
+use App\Http\Controllers\Api\Public\SiteOffersController;
 use App\Http\Controllers\Api\Public\SitePageContentController;
 use Illuminate\Support\Facades\Route;
 
