@@ -80,7 +80,7 @@ class CompanyLicenseService
 
         // Prefer product-scoped SoftKatta Admin list for error messaging / match.
         if ($tenant) {
-            $adminDomains = collect($tenant->deployDomains($license->product))
+            $adminDomains = collect($tenant->deployDomains($license->product, $license->subscription))
                 ->map(fn ($d) => LicenseKey::normalizeDomain($d))
                 ->filter()
                 ->values();
@@ -717,27 +717,28 @@ class CompanyLicenseService
      */
     protected function assertTenantDomainAuthorization(LicenseKey $license, string $domain): ?array
     {
-        $license->loadMissing('product');
+        $license->loadMissing(['product', 'subscription']);
         $product = $license->product;
+        $subscription = $license->subscription;
         $tenant = $this->resolveTenantForLicense($license, $domain);
 
-        if (! $tenant || ! $tenant->hasDeployDomains($product)) {
+        if (! $tenant || ! $tenant->hasDeployDomains($product, $subscription)) {
             $productLabel = $product?->name ?? 'this product';
 
             return $this->error(
                 'TENANT_DOMAINS_REQUIRED',
-                "Assign frontend and backend domains for {$productLabel} in SoftKatta Admin → Tenants (product domains) before project setup.",
+                "Assign frontend and backend domains for {$productLabel} (this subscription) in SoftKatta Admin → Tenants before project setup.",
                 403,
             );
         }
 
-        if (! $tenant->allowsDeployDomain($domain, $product)) {
-            $assigned = implode(', ', $tenant->deployDomains($product));
+        if (! $tenant->allowsDeployDomain($domain, $product, $subscription)) {
+            $assigned = implode(', ', $tenant->deployDomains($product, $subscription));
             $productLabel = $product?->name ?? 'this product';
 
             return $this->error(
                 'DOMAIN_NOT_AUTHORIZED',
-                "Detected domain [{$domain}] does not match SoftKatta Admin domains [{$assigned}] for {$productLabel}. Study Point and Kindergarten must each have their own domains — setup is only allowed on the assigned domains.",
+                "Detected domain [{$domain}] does not match SoftKatta Admin domains [{$assigned}] for {$productLabel}. Each purchase has its own domains — setup is only allowed on the assigned domains.",
                 403,
             );
         }
@@ -749,29 +750,28 @@ class CompanyLicenseService
     {
         $license->loadMissing(['subscription.tenant', 'subscription.product', 'user', 'product']);
         $product = $license->product ?? $license->subscription?->product;
-        $user = $license->user ?? $license->subscription?->user;
-
         $subscription = $license->subscription;
+        $user = $license->user ?? $subscription?->user;
+
         if ($subscription) {
             $tenant = $this->licenseService->resolveTenantForSubscription($subscription);
             if ($tenant) {
-                if ($forDomain === null || $tenant->allowsDeployDomain($forDomain, $product) || ! $tenant->hasDeployDomains($product)) {
+                if ($forDomain === null || $tenant->allowsDeployDomain($forDomain, $product, $subscription) || ! $tenant->hasDeployDomains($product, $subscription)) {
                     return $tenant;
                 }
             }
         }
 
-        // Same customer may own multiple tenants — pick one that already allows this host for this product.
         if ($user && $forDomain) {
             $owned = Tenant::query()->where('owner_id', $user->id)->get();
-            $matching = $owned->first(fn (Tenant $tenant) => $tenant->allowsDeployDomain($forDomain, $product));
+            $matching = $owned->first(fn (Tenant $tenant) => $tenant->allowsDeployDomain($forDomain, $product, $subscription));
             if ($matching) {
                 return $matching;
             }
 
-            $withProductDomains = $owned->first(fn (Tenant $tenant) => $tenant->hasDeployDomains($product));
-            if ($withProductDomains) {
-                return $withProductDomains;
+            $withDomains = $owned->first(fn (Tenant $tenant) => $tenant->hasDeployDomains($product, $subscription));
+            if ($withDomains) {
+                return $withDomains;
             }
         }
 

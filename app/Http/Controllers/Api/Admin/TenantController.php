@@ -30,22 +30,23 @@ class TenantController extends BaseApiController
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:tenants,slug'],
-            'domain' => ['nullable', 'string', 'max:255', 'unique:tenants,domain'],
-            'backend_domain' => ['nullable', 'string', 'max:255', 'unique:tenants,backend_domain'],
-            'frontend_domain' => ['nullable', 'string', 'max:255', 'unique:tenants,frontend_domain'],
-            'extra_domains' => ['nullable', 'array'],
-            'extra_domains.*' => ['string', 'max:255'],
-            'product_domains' => ['nullable', 'array'],
-            'product_domains.*.frontend_domain' => ['nullable', 'string', 'max:255'],
-            'product_domains.*.backend_domain' => ['nullable', 'string', 'max:255'],
             'owner_id' => ['required', 'exists:users,id'],
             'status' => ['nullable', 'string', 'in:active,suspended,inactive'],
             'settings' => ['nullable', 'array'],
+            'subscription_domains' => ['nullable', 'array'],
+            'subscription_domains.*.subscription_id' => ['required', 'integer', 'exists:subscriptions,id'],
+            'subscription_domains.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'subscription_domains.*.frontend_domain' => ['required', 'string', 'max:255'],
+            'subscription_domains.*.backend_domain' => ['required', 'string', 'max:255'],
         ]);
 
         $tenant = $service->create($data);
 
-        return $this->success($tenant->load('owner:id,name,email'), 'Tenant created.', 201);
+        return $this->success(
+            $tenant->load('owner:id,name,email'),
+            'Tenant created. License keys generate automatically when subscription domains are saved.',
+            201
+        );
     }
 
     public function show(Request $request, Tenant $tenant, SecurityService $security): JsonResponse
@@ -65,22 +66,25 @@ class TenantController extends BaseApiController
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:tenants,slug,'.$tenant->id],
-            'domain' => ['nullable', 'string', 'max:255', 'unique:tenants,domain,'.$tenant->id],
-            'backend_domain' => ['nullable', 'string', 'max:255', 'unique:tenants,backend_domain,'.$tenant->id],
-            'frontend_domain' => ['nullable', 'string', 'max:255', 'unique:tenants,frontend_domain,'.$tenant->id],
-            'extra_domains' => ['nullable', 'array'],
-            'extra_domains.*' => ['string', 'max:255'],
-            'product_domains' => ['nullable', 'array'],
-            'product_domains.*.frontend_domain' => ['nullable', 'string', 'max:255'],
-            'product_domains.*.backend_domain' => ['nullable', 'string', 'max:255'],
             'owner_id' => ['sometimes', 'nullable', 'exists:users,id'],
             'status' => ['nullable', 'string', 'in:active,suspended,inactive'],
             'settings' => ['nullable', 'array'],
+            'subscription_domains' => ['nullable', 'array'],
+            'subscription_domains.*.subscription_id' => ['required', 'integer', 'exists:subscriptions,id'],
+            'subscription_domains.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'subscription_domains.*.frontend_domain' => ['required', 'string', 'max:255'],
+            'subscription_domains.*.backend_domain' => ['required', 'string', 'max:255'],
         ]);
 
         $tenant = $service->update($scopedTenant, $data);
+        $assigned = count((array) data_get($tenant->settings, 'subscription_domains', []));
 
-        return $this->success($tenant->load('owner:id,name,email'), 'Tenant updated.');
+        return $this->success(
+            $tenant->load('owner:id,name,email'),
+            $assigned > 0
+                ? 'Tenant updated. License keys generated/synced for each subscription with domains.'
+                : 'Tenant updated.'
+        );
     }
 
     public function destroy(Request $request, Tenant $tenant, SecurityService $security): JsonResponse

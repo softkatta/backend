@@ -68,11 +68,33 @@ class Tenant extends Model
     }
 
     /**
-     * Product-scoped SoftKatta Admin domains (Study Point vs Kindergarten, etc.).
+     * Domains assigned to a specific subscription (one purchase → one license).
      *
+     * @return array{frontend_domain: ?string, backend_domain: ?string, product_id?: int|string|null}|null
+     */
+    public function subscriptionDomainPair(?Subscription $subscription): ?array
+    {
+        if (! $subscription) {
+            return null;
+        }
+
+        $pair = data_get($this->settings, 'subscription_domains.'.$subscription->id);
+        if (is_array($pair)) {
+            return [
+                'frontend_domain' => isset($pair['frontend_domain']) ? (string) $pair['frontend_domain'] : null,
+                'backend_domain' => isset($pair['backend_domain']) ? (string) $pair['backend_domain'] : null,
+                'product_id' => $pair['product_id'] ?? $subscription->product_id,
+            ];
+        }
+
+        // Legacy: product-slug map (one domain set shared by all purchases of that product).
+        return $this->legacyProductDomainPair($subscription->product);
+    }
+
+    /**
      * @return array{frontend_domain: ?string, backend_domain: ?string}|null
      */
-    public function productDomainPair(?Product $product): ?array
+    protected function legacyProductDomainPair(?Product $product): ?array
     {
         if (! $product) {
             return null;
@@ -80,9 +102,7 @@ class Tenant extends Model
 
         $slug = $product->installerSlug();
         $pair = data_get($this->settings, "product_domains.{$slug}");
-
         if (! is_array($pair)) {
-            // Also try catalog slug aliases.
             $pair = data_get($this->settings, "product_domains.{$product->slug}");
         }
 
@@ -96,9 +116,9 @@ class Tenant extends Model
         ];
     }
 
-    public function hasProductDomains(?Product $product): bool
+    public function hasSubscriptionDomains(?Subscription $subscription): bool
     {
-        $pair = $this->productDomainPair($product);
+        $pair = $this->subscriptionDomainPair($subscription);
         if (! $pair) {
             return false;
         }
@@ -110,64 +130,76 @@ class Tenant extends Model
     }
 
     /**
-     * Domains allowed for license bind / install wizard.
-     * When $product is given, prefer that product's SoftKatta Admin domains
-     * so Study Point domains are not used for Kindergarten (and vice versa).
-     *
      * @return list<string>
      */
-    public function deployDomains(?Product $product = null): array
+    public function deployDomains(?Product $product = null, ?Subscription $subscription = null): array
     {
-        $domains = collect();
+        if ($subscription) {
+            $pair = $this->subscriptionDomainPair($subscription);
 
-        if ($product && $this->hasProductDomains($product)) {
-            $pair = $this->productDomainPair($product);
-            $domains = $domains->merge([
+            return $this->normalizeDomainList([
                 $pair['frontend_domain'] ?? null,
                 $pair['backend_domain'] ?? null,
             ]);
-        } else {
-            $domains = $domains->merge([
-                $this->frontend_domain,
-                $this->backend_domain,
-                $this->domain,
-            ]);
         }
 
-        foreach ($this->extra_domains ?? [] as $extra) {
-            $domains->push($extra);
+        if ($product) {
+            $domains = collect();
+            foreach ((array) data_get($this->settings, 'subscription_domains', []) as $pair) {
+                if (! is_array($pair)) {
+                    continue;
+                }
+                if ((int) ($pair['product_id'] ?? 0) !== (int) $product->id) {
+                    continue;
+                }
+                $domains->push($pair['frontend_domain'] ?? null, $pair['backend_domain'] ?? null);
+            }
+
+            $legacy = $this->legacyProductDomainPair($product);
+            if ($legacy) {
+                $domains->push($legacy['frontend_domain'] ?? null, $legacy['backend_domain'] ?? null);
+            }
+
+            return $this->normalizeDomainList($domains->all());
         }
 
-        return $domains
-            ->map(fn ($domain) => LicenseKey::normalizeDomain(is_string($domain) ? $domain : null))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        return [];
     }
 
-    /**
-     * Product-scoped domains if configured; otherwise workspace frontend+backend.
-     */
-    public function hasDeployDomains(?Product $product = null): bool
+    public function hasDeployDomains(?Product $product = null, ?Subscription $subscription = null): bool
     {
-        if ($product && $this->hasProductDomains($product)) {
-            return true;
+        if ($subscription) {
+            return $this->hasSubscriptionDomains($subscription);
         }
 
-        $frontend = LicenseKey::normalizeDomain($this->frontend_domain ?: $this->domain);
-        $backend = LicenseKey::normalizeDomain($this->backend_domain);
+        if ($product) {
+            return $this->deployDomains($product) !== [];
+        }
 
-        return $frontend !== null && $frontend !== '' && $backend !== null && $backend !== '';
+        return false;
     }
 
-    public function allowsDeployDomain(?string $domain, ?Product $product = null): bool
+    public function allowsDeployDomain(?string $domain, ?Product $product = null, ?Subscription $subscription = null): bool
     {
         $normalized = LicenseKey::normalizeDomain($domain);
         if ($normalized === null || $normalized === '') {
             return false;
         }
 
-        return in_array($normalized, $this->deployDomains($product), true);
+        return in_array($normalized, $this->deployDomains($product, $subscription), true);
+    }
+
+    /**
+     * @param  list<mixed>  $domains
+     * @return list<string>
+     */
+    protected function normalizeDomainList(array $domains): array
+    {
+        return collect($domains)
+            ->map(fn ($domain) => LicenseKey::normalizeDomain(is_string($domain) ? $domain : null))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 }

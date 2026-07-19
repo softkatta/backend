@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -28,25 +29,23 @@ class TenantService
     public function create(array $data, ?User $owner = null): Tenant
     {
         $slug = $data['slug'] ?? $this->generateSlug($data['name']);
-        $frontendDomain = $this->normalizeDomainInput($data['frontend_domain'] ?? $data['domain'] ?? null);
-        $backendDomain = $this->normalizeDomainInput($data['backend_domain'] ?? null);
         $ownerId = $owner?->id ?? $data['owner_id'] ?? null;
         $settings = is_array($data['settings'] ?? null) ? $data['settings'] : [
             'brand' => 'SoftKatta Solutions',
             'timezone' => 'Asia/Kolkata',
         ];
 
-        if (isset($data['product_domains']) && is_array($data['product_domains'])) {
-            $settings['product_domains'] = $this->normalizeProductDomains($data['product_domains']);
+        if (array_key_exists('subscription_domains', $data) && is_array($data['subscription_domains'])) {
+            $settings['subscription_domains'] = $this->normalizeSubscriptionDomains($data['subscription_domains']);
         }
 
         $tenant = Tenant::create([
             'name' => $data['name'],
             'slug' => $slug,
-            'domain' => $frontendDomain,
-            'backend_domain' => $backendDomain,
-            'frontend_domain' => $frontendDomain,
-            'extra_domains' => $this->normalizeExtraDomains($data['extra_domains'] ?? []),
+            'domain' => null,
+            'backend_domain' => null,
+            'frontend_domain' => null,
+            'extra_domains' => [],
             'database_name' => $data['database_name'] ?? null,
             'status' => $data['status'] ?? 'active',
             'settings' => $settings,
@@ -68,28 +67,22 @@ class TenantService
             $data['slug'] = $this->generateSlug($data['name']);
         }
 
-        if (array_key_exists('frontend_domain', $data)) {
-            $data['frontend_domain'] = $this->normalizeDomainInput($data['frontend_domain']);
-            $data['domain'] = $data['frontend_domain'];
-        } elseif (array_key_exists('domain', $data)) {
-            $data['domain'] = $this->normalizeDomainInput($data['domain']);
-            $data['frontend_domain'] = $data['domain'];
-        }
-
-        if (array_key_exists('backend_domain', $data)) {
-            $data['backend_domain'] = $this->normalizeDomainInput($data['backend_domain']);
-        }
-
-        if (array_key_exists('extra_domains', $data)) {
-            $data['extra_domains'] = $this->normalizeExtraDomains($data['extra_domains']);
-        }
-
-        if (isset($data['product_domains']) && is_array($data['product_domains'])) {
+        if (array_key_exists('subscription_domains', $data) && is_array($data['subscription_domains'])) {
             $settings = is_array($tenant->settings) ? $tenant->settings : [];
-            $settings['product_domains'] = $this->normalizeProductDomains($data['product_domains']);
+            $settings['subscription_domains'] = $this->normalizeSubscriptionDomains($data['subscription_domains']);
             $data['settings'] = $settings;
-            unset($data['product_domains']);
+            unset($data['subscription_domains']);
         }
+
+        // Domains live only under settings.subscription_domains — clear legacy columns when saving assignments.
+        if (array_key_exists('settings', $data)) {
+            $data['frontend_domain'] = null;
+            $data['backend_domain'] = null;
+            $data['domain'] = null;
+            $data['extra_domains'] = [];
+        }
+
+        unset($data['product_domains'], $data['extra_domains']);
 
         $tenant->update($data);
 
@@ -133,48 +126,37 @@ class TenantService
     }
 
     /**
-     * @param  mixed  $value
-     * @return list<string>
+     * @param  array<int|string, mixed>  $rows
+     * @return array<string, array{subscription_id: int, product_id: int|null, frontend_domain: string, backend_domain: string}>
      */
-    protected function normalizeExtraDomains(mixed $value): array
-    {
-        if (is_string($value)) {
-            $value = preg_split('/[\r\n,]+/', $value) ?: [];
-        }
-
-        if (! is_array($value)) {
-            return [];
-        }
-
-        return collect($value)
-            ->map(fn ($domain) => $this->normalizeDomainInput(is_string($domain) ? $domain : null))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @param  array<string, mixed>  $productDomains
-     * @return array<string, array{frontend_domain: ?string, backend_domain: ?string}>
-     */
-    protected function normalizeProductDomains(array $productDomains): array
+    protected function normalizeSubscriptionDomains(array $rows): array
     {
         $normalized = [];
 
-        foreach ($productDomains as $slug => $pair) {
-            if (! is_string($slug) || $slug === '' || ! is_array($pair)) {
+        foreach ($rows as $key => $row) {
+            if (! is_array($row)) {
                 continue;
             }
 
-            $frontend = $this->normalizeDomainInput($pair['frontend_domain'] ?? null);
-            $backend = $this->normalizeDomainInput($pair['backend_domain'] ?? null);
-
-            if ($frontend === null && $backend === null) {
+            $subscriptionId = (int) ($row['subscription_id'] ?? $key);
+            if ($subscriptionId <= 0) {
                 continue;
             }
 
-            $normalized[$slug] = [
+            $frontend = $this->normalizeDomainInput($row['frontend_domain'] ?? null);
+            $backend = $this->normalizeDomainInput($row['backend_domain'] ?? null);
+            if ($frontend === null || $backend === null) {
+                continue;
+            }
+
+            $subscription = Subscription::query()->withoutGlobalScopes()->find($subscriptionId);
+            $productId = isset($row['product_id'])
+                ? (int) $row['product_id']
+                : ($subscription?->product_id);
+
+            $normalized[(string) $subscriptionId] = [
+                'subscription_id' => $subscriptionId,
+                'product_id' => $productId,
                 'frontend_domain' => $frontend,
                 'backend_domain' => $backend,
             ];

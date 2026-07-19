@@ -105,9 +105,9 @@ class LicenseService
         $tenant = $this->resolveTenantForSubscription($subscription);
         $product = $subscription->product;
 
-        if (! $tenant || ! $tenant->hasDeployDomains($product)) {
+        if (! $tenant || ! $tenant->hasDeployDomains($product, $subscription)) {
             throw new \App\Exceptions\TenantDomainsRequiredException(
-                'Assign SoftKatta Admin → Tenants domains for this product (Study Point / Kindergarten) before generating a license or running project setup.'
+                'Assign SoftKatta Admin → Tenants domains for this subscription before generating a license or running project setup.'
             );
         }
 
@@ -122,7 +122,7 @@ class LicenseService
         }
 
         $limits = $plan?->limits ?? [];
-        $domains = $tenant->deployDomains($product);
+        $domains = $tenant->deployDomains($product, $subscription);
 
         return LicenseKey::create([
             'subscription_id' => $subscription->id,
@@ -145,18 +145,19 @@ class LicenseService
     }
 
     /**
-     * Sync license allowed_domains from SoftKatta Admin tenant domains for this product.
+     * Sync license allowed_domains from SoftKatta Admin domains for this subscription.
      */
     public function syncAllowedDomainsFromTenant(LicenseKey $license, Tenant $tenant): LicenseKey
     {
-        $license->loadMissing('product');
+        $license->loadMissing(['product', 'subscription']);
         $product = $license->product;
+        $subscription = $license->subscription;
 
-        if (! $tenant->hasDeployDomains($product)) {
+        if (! $tenant->hasDeployDomains($product, $subscription)) {
             return $license;
         }
 
-        $domains = $tenant->deployDomains($product);
+        $domains = $tenant->deployDomains($product, $subscription);
         $license->update([
             'allowed_domains' => $domains,
             'max_domains' => max((int) $license->max_domains, count($domains)),
@@ -211,7 +212,7 @@ class LicenseService
             ->orderBy('id')
             ->each(function (Subscription $subscription) use ($tenant, &$created): void {
                 $product = $subscription->product;
-                if (! $tenant->hasDeployDomains($product)) {
+                if (! $tenant->hasDeployDomains($product, $subscription)) {
                     return;
                 }
 

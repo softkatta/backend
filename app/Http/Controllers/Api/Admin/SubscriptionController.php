@@ -23,12 +23,18 @@ class SubscriptionController extends BaseApiController
     public function index(Request $request, SecurityService $security): JsonResponse
     {
         $query = Subscription::withoutGlobalScopes()
-            ->with(['user', 'product', 'plan', 'tenant'])
+            ->with(['user', 'product', 'plan', 'tenant', 'licenseKey'])
             ->latest();
         $security->applyAdminWorkspaceScope($query, $request);
 
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->integer('user_id'));
+        }
+
+        $perPage = min(100, max(1, $request->integer('per_page', 20)));
+
         return $this->success(
-            $query->paginate(20)
+            $query->paginate($perPage)
         );
     }
 
