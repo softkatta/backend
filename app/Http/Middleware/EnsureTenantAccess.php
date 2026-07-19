@@ -67,7 +67,12 @@ class EnsureTenantAccess
     {
         $path = trim($request->path(), '/');
 
-        if ($request->isMethod('POST') && Str::endsWith($path, 'client/purchase')) {
+        if ($request->isMethod('POST') && (
+            $path === 'api/v1/client/purchase'
+            || $path === 'api/v1/client/purchase/batch'
+            || $path === 'api/v1/client/coupons/validate'
+            || $path === 'api/v1/client/payments/verify'
+        )) {
             return true;
         }
 
@@ -77,6 +82,7 @@ class EnsureTenantAccess
             'api/v1/client/subscriptions',
             'api/v1/client/licenses',
             'api/v1/client/invoices',
+            'api/v1/client/orders',
             'api/v1/client/notifications',
             'api/v1/client/support',
             'api/v1/client/profile',
