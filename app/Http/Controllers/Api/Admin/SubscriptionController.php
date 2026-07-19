@@ -49,7 +49,7 @@ class SubscriptionController extends BaseApiController
         );
     }
 
-    public function store(Request $request, TenantService $tenantService, SecurityService $security): JsonResponse
+    public function store(Request $request, TenantService $tenantService, SecurityService $security, BillingAdminService $billingAdmin): JsonResponse
     {
         $data = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
@@ -60,6 +60,9 @@ class SubscriptionController extends BaseApiController
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'auto_renew' => ['sometimes', 'boolean'],
             'apply_trial' => ['sometimes', 'boolean'],
+            'payment_method' => ['sometimes', 'string', 'in:cash,cheque,manual,bank_transfer'],
+            'payment_reference' => ['nullable', 'string', 'max:120'],
+            'create_billing' => ['sometimes', 'boolean'],
         ]);
 
         $user = User::findOrFail($data['user_id']);
@@ -116,22 +119,33 @@ class SubscriptionController extends BaseApiController
             'auto_renew' => $data['auto_renew'] ?? true,
         ]);
 
+        $createBilling = $data['create_billing'] ?? true;
+        if ($createBilling) {
+            $billingAdmin->createPaidBillingForSubscription(
+                $subscription->fresh(['user', 'product', 'plan']),
+                $data['payment_method'] ?? 'cash',
+                $data['payment_reference'] ?? null,
+            );
+        }
+
         // Auto-generate license only when SoftKatta Admin has assigned tenant domains.
         if (in_array($subscription->status, [SubscriptionStatus::Active, SubscriptionStatus::Trial])) {
             try {
                 app(LicenseService::class)->generateForSubscription($subscription);
             } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
                 return $this->success(
-                    $subscription->load(['user', 'product', 'plan', 'tenant']),
-                    'Subscription created. Assign frontend + backend domains on the customer tenant before a license can be generated or the project can be set up.',
+                    $subscription->load(['user', 'product', 'plan', 'tenant', 'invoices']),
+                    'Subscription created with order, invoice, and payment. Assign frontend + backend domains on the customer tenant before a license can be generated.',
                     201
                 );
             }
         }
 
         return $this->success(
-            $subscription->load(['user', 'product', 'plan', 'tenant']),
-            'Subscription created.',
+            $subscription->load(['user', 'product', 'plan', 'tenant', 'invoices']),
+            $createBilling
+                ? 'Subscription created with order, invoice, and payment.'
+                : 'Subscription created.',
             201
         );
     }
@@ -194,6 +208,41 @@ class SubscriptionController extends BaseApiController
         return $this->success(
             $subscription->fresh()->load(['user', 'product', 'plan', 'tenant']),
             'Subscription cancelled. Open renewal invoices were cancelled; access continues until expiry.'
+        );
+    }
+
+    /**
+     * Backfill order + invoice + payment for subscriptions created before billing was wired.
+     */
+    public function createBilling(
+        Request $request,
+        Subscription $subscription,
+        BillingAdminService $billingAdmin,
+        SecurityService $security,
+    ): JsonResponse {
+        $query = Subscription::withoutGlobalScopes();
+        $security->applyAdminWorkspaceScope($query, $request);
+        $scoped = $query->findOrFail($subscription->id);
+
+        $data = $request->validate([
+            'payment_method' => ['sometimes', 'string', 'in:cash,cheque,manual,bank_transfer'],
+            'payment_reference' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $result = $billingAdmin->createPaidBillingForSubscription(
+            $scoped->load(['user', 'product', 'plan']),
+            $data['payment_method'] ?? 'cash',
+            $data['payment_reference'] ?? null,
+        );
+
+        return $this->success(
+            [
+                'subscription' => $scoped->fresh(['user', 'product', 'plan', 'invoices']),
+                'order' => $result['order'],
+                'invoice' => $result['invoice'],
+                'payment' => $result['payment'],
+            ],
+            'Billing records created for this subscription.',
         );
     }
 

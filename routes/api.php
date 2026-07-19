@@ -428,6 +428,7 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('services', AdminServiceController::class);
 
         Route::post('subscriptions/{subscription}/cancel', [AdminSubscriptionController::class, 'cancel']);
+        Route::post('subscriptions/{subscription}/create-billing', [AdminSubscriptionController::class, 'createBilling']);
         Route::apiResource('subscriptions', AdminSubscriptionController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
         Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'destroy']);
         Route::apiResource('invoices', AdminInvoiceController::class)->only(['index', 'show', 'update', 'destroy']);

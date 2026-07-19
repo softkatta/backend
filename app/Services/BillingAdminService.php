@@ -18,6 +18,109 @@ use Illuminate\Validation\ValidationException;
 class BillingAdminService
 {
     /**
+     * Create Order + Invoice + Payment for an admin-assigned subscription
+     * so it appears under Admin → Orders / Invoices / Payments.
+     *
+     * @return array{order: Order, invoice: Invoice, payment: ?Payment}
+     */
+    public function createPaidBillingForSubscription(
+        Subscription $subscription,
+        string $paymentMethod = 'cash',
+        ?string $reference = null,
+    ): array {
+        $subscription->loadMissing(['user', 'product', 'plan']);
+
+        $existingInvoice = Invoice::withoutGlobalScopes()
+            ->where('subscription_id', $subscription->id)
+            ->latest('id')
+            ->first();
+
+        if ($existingInvoice) {
+            $existingInvoice->loadMissing('order');
+            $payment = Payment::withoutGlobalScopes()
+                ->where('invoice_id', $existingInvoice->id)
+                ->where('status', PaymentStatus::Completed)
+                ->latest('id')
+                ->first();
+
+            return [
+                'order' => $existingInvoice->order ?? Order::withoutGlobalScopes()->findOrFail($existingInvoice->order_id),
+                'invoice' => $existingInvoice,
+                'payment' => $payment,
+            ];
+        }
+
+        $user = $subscription->user;
+        $product = $subscription->product;
+        $plan = $subscription->plan;
+
+        if (! $user || ! $product || ! $plan) {
+            throw ValidationException::withMessages([
+                'subscription' => ['Subscription is missing user, product, or plan.'],
+            ]);
+        }
+
+        $paymentMethod = in_array($paymentMethod, ['cash', 'cheque', 'manual', 'bank_transfer'], true)
+            ? $paymentMethod
+            : 'cash';
+
+        return DB::transaction(function () use ($subscription, $user, $product, $plan, $paymentMethod, $reference) {
+            $amount = round((float) $plan->price, 2);
+            $taxRate = app(InvoiceProfileService::class)->gstRate();
+            $taxAmount = round($amount * ($taxRate / 100), 2);
+            $totalAmount = round($amount + $taxAmount, 2);
+
+            $order = Order::create([
+                'tenant_id' => $subscription->tenant_id ?? $user->tenant_id,
+                'user_id' => $user->id,
+                'product_id' => $product->id,
+                'plan_id' => $plan->id,
+                'order_number' => 'SK-ORD-'.strtoupper(\Illuminate\Support\Str::random(10)),
+                'amount' => $amount,
+                'discount_amount' => 0,
+                'tax_amount' => $taxAmount,
+                'total_amount' => $totalAmount,
+                'status' => 'completed',
+                'payment_gateway' => $paymentMethod,
+            ]);
+
+            $invoice = app(InvoiceService::class)->generateFromOrder($order, $subscription, [
+                'item_description' => "{$product->name} — {$plan->name} ({$plan->billing_cycle->label()}) [Admin assigned]",
+                'due_date' => now()->toDateString(),
+            ]);
+
+            $transactionId = $this->manualTransactionId($paymentMethod, $invoice, $reference);
+            $order->update(['payment_id' => $transactionId]);
+
+            $invoice = app(InvoiceService::class)->markAsPaid($invoice);
+            $payment = Payment::withoutGlobalScopes()
+                ->where('invoice_id', $invoice->id)
+                ->where('status', PaymentStatus::Completed)
+                ->latest('id')
+                ->first();
+
+            if ($payment && $paymentMethod !== 'manual') {
+                $payment->update([
+                    'gateway' => $paymentMethod,
+                    'transaction_id' => $transactionId,
+                    'gateway_response' => array_filter([
+                        'source' => 'admin_subscription_create',
+                        'payment_method' => $paymentMethod,
+                        'reference' => $reference,
+                        'recorded_at' => now()->toIso8601String(),
+                    ]),
+                ]);
+            }
+
+            return [
+                'order' => $order->fresh(),
+                'invoice' => $invoice->fresh(['items']),
+                'payment' => $payment?->fresh(),
+            ];
+        });
+    }
+
+    /**
      * @return array{payment: Payment, invoice: Invoice}
      */
     public function recordManualPayment(

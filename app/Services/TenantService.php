@@ -234,7 +234,7 @@ class TenantService
             default => $startsAt->copy()->addMonth(),
         };
 
-        return Subscription::create([
+        $subscription = Subscription::create([
             'tenant_id' => $tenant->id,
             'user_id' => $ownerId,
             'product_id' => $product->id,
@@ -245,6 +245,17 @@ class TenantService
             'trial_ends_at' => null,
             'auto_renew' => true,
         ]);
+
+        try {
+            app(BillingAdminService::class)->createPaidBillingForSubscription(
+                $subscription->fresh(['user', 'product', 'plan']),
+                'cash',
+            );
+        } catch (\Throwable) {
+            // Domain assignment should still succeed even if billing records fail.
+        }
+
+        return $subscription;
     }
 
     /**
