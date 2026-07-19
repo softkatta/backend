@@ -200,14 +200,14 @@ class Tenant extends Model
             return null;
         }
 
-        foreach ($this->domainMatchCandidates($normalized) as $candidate) {
+        foreach (static::domainMatchCandidates($normalized) as $candidate) {
             if (in_array($candidate, $allowed, true)) {
                 return $candidate;
             }
         }
 
         foreach ($allowed as $assigned) {
-            if (in_array($normalized, $this->domainMatchCandidates($assigned), true)) {
+            if (in_array($normalized, static::domainMatchCandidates($assigned), true)) {
                 return $assigned;
             }
         }
@@ -221,7 +221,7 @@ class Tenant extends Model
      *
      * @return list<string>
      */
-    public function domainMatchCandidates(string $domain): array
+    public static function domainMatchCandidates(string $domain): array
     {
         $domain = strtolower($domain);
         $candidates = [$domain];

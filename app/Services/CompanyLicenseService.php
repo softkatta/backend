@@ -814,10 +814,7 @@ class CompanyLicenseService
             return true;
         }
 
-        $tenant = new Tenant;
-        $leftCandidates = $tenant->domainMatchCandidates($left);
-
-        return in_array($right, $leftCandidates, true);
+        return in_array($right, Tenant::domainMatchCandidates($left), true);
     }
 
     protected function isLocalDevDomain(string $domain): bool

@@ -115,9 +115,8 @@ class LicenseKey extends Model
         }
 
         // SPA/API pair aliases (study-point ↔ study-api, kinder ↔ kinder-api)
-        $tenant = new Tenant;
         foreach ($allowed as $assigned) {
-            if (in_array($domain, $tenant->domainMatchCandidates((string) $assigned), true)) {
+            if (in_array($domain, Tenant::domainMatchCandidates((string) $assigned), true)) {
                 return true;
             }
         }
