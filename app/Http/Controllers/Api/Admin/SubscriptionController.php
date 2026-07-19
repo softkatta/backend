@@ -273,6 +273,6 @@ class SubscriptionController extends BaseApiController
 
         $billingAdmin->deleteSubscription($scopedSubscription);
 
-        return $this->success(null, 'Subscription deleted.');
+        return $this->success(null, 'Subscription and related billing/license data permanently deleted.');
     }
 }

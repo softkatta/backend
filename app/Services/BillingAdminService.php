@@ -6,9 +6,11 @@ use App\Enums\InvoiceStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
 use App\Models\Invoice;
+use App\Models\LicenseKey;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Subscription;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -383,12 +385,68 @@ class BillingAdminService
         DB::transaction(function () use ($subscription): void {
             $subscription = Subscription::withoutGlobalScopes()->findOrFail($subscription->id);
 
-            Invoice::withoutGlobalScopes()
+            $this->forgetSubscriptionDomainSettings($subscription);
+
+            $invoices = Invoice::withoutGlobalScopes()
                 ->where('subscription_id', $subscription->id)
-                ->update(['subscription_id' => null]);
+                ->get();
+
+            $orderIds = $invoices
+                ->pluck('order_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            foreach ($invoices as $invoice) {
+                $this->deleteInvoice($invoice);
+            }
+
+            foreach ($orderIds as $orderId) {
+                $order = Order::withoutGlobalScopes()->find($orderId);
+                if ($order) {
+                    $this->deleteOrder($order);
+                }
+            }
+
+            LicenseKey::withTrashed()
+                ->where('subscription_id', $subscription->id)
+                ->get()
+                ->each(fn (LicenseKey $license) => $this->permanentlyDelete($license));
 
             $this->permanentlyDelete($subscription);
         });
+    }
+
+    protected function forgetSubscriptionDomainSettings(Subscription $subscription): void
+    {
+        if (! $subscription->tenant_id) {
+            return;
+        }
+
+        $tenant = Tenant::withoutGlobalScopes()->find($subscription->tenant_id);
+        if (! $tenant) {
+            return;
+        }
+
+        $settings = is_array($tenant->settings) ? $tenant->settings : [];
+        $key = (string) $subscription->id;
+        $changed = false;
+
+        foreach (['subscription_domains', 'pending_subscription_domains', 'subscription_domain_skips'] as $bucket) {
+            if (! is_array($settings[$bucket] ?? null)) {
+                continue;
+            }
+
+            if (array_key_exists($key, $settings[$bucket]) || array_key_exists((int) $subscription->id, $settings[$bucket])) {
+                unset($settings[$bucket][$key], $settings[$bucket][(int) $subscription->id]);
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $tenant->update(['settings' => $settings]);
+        }
     }
 
     private function permanentlyDelete(Model $model): void
