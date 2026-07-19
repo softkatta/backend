@@ -200,19 +200,45 @@ class Tenant extends Model
             return null;
         }
 
+        $matches = [];
+
         foreach (static::domainMatchCandidates($normalized) as $candidate) {
             if (in_array($candidate, $allowed, true)) {
-                return $candidate;
+                $matches[] = $candidate;
             }
         }
 
         foreach ($allowed as $assigned) {
             if (in_array($normalized, static::domainMatchCandidates($assigned), true)) {
-                return $assigned;
+                $matches[] = $assigned;
             }
         }
 
-        return null;
+        $matches = array_values(array_unique($matches));
+        if ($matches === []) {
+            return null;
+        }
+
+        // Prefer SPA host (study-point / kinder) over API host when both are authorized.
+        usort($matches, fn (string $a, string $b) => static::spaBindScore($b) <=> static::spaBindScore($a));
+
+        return $matches[0];
+    }
+
+    /**
+     * Higher score = preferred SoftKatta bound_domain for split SPA/API hosting.
+     */
+    public static function spaBindScore(string $domain): int
+    {
+        $domain = strtolower($domain);
+        if (str_starts_with($domain, 'study-point.') || str_starts_with($domain, 'kinder.')) {
+            return 2;
+        }
+        if (str_starts_with($domain, 'study-api.') || str_starts_with($domain, 'kinder-api.')) {
+            return 0;
+        }
+
+        return 1;
     }
 
     /**
