@@ -31,6 +31,14 @@ class TenantService
         $frontendDomain = $this->normalizeDomainInput($data['frontend_domain'] ?? $data['domain'] ?? null);
         $backendDomain = $this->normalizeDomainInput($data['backend_domain'] ?? null);
         $ownerId = $owner?->id ?? $data['owner_id'] ?? null;
+        $settings = is_array($data['settings'] ?? null) ? $data['settings'] : [
+            'brand' => 'SoftKatta Solutions',
+            'timezone' => 'Asia/Kolkata',
+        ];
+
+        if (isset($data['product_domains']) && is_array($data['product_domains'])) {
+            $settings['product_domains'] = $this->normalizeProductDomains($data['product_domains']);
+        }
 
         $tenant = Tenant::create([
             'name' => $data['name'],
@@ -38,12 +46,10 @@ class TenantService
             'domain' => $frontendDomain,
             'backend_domain' => $backendDomain,
             'frontend_domain' => $frontendDomain,
+            'extra_domains' => $this->normalizeExtraDomains($data['extra_domains'] ?? []),
             'database_name' => $data['database_name'] ?? null,
             'status' => $data['status'] ?? 'active',
-            'settings' => $data['settings'] ?? [
-                'brand' => 'SoftKatta Solutions',
-                'timezone' => 'Asia/Kolkata',
-            ],
+            'settings' => $settings,
             'owner_id' => $ownerId,
         ]);
 
@@ -74,6 +80,17 @@ class TenantService
             $data['backend_domain'] = $this->normalizeDomainInput($data['backend_domain']);
         }
 
+        if (array_key_exists('extra_domains', $data)) {
+            $data['extra_domains'] = $this->normalizeExtraDomains($data['extra_domains']);
+        }
+
+        if (isset($data['product_domains']) && is_array($data['product_domains'])) {
+            $settings = is_array($tenant->settings) ? $tenant->settings : [];
+            $settings['product_domains'] = $this->normalizeProductDomains($data['product_domains']);
+            $data['settings'] = $settings;
+            unset($data['product_domains']);
+        }
+
         $tenant->update($data);
 
         if (array_key_exists('owner_id', $data)) {
@@ -101,10 +118,6 @@ class TenantService
 
     protected function afterDomainsMaybeReady(Tenant $tenant): void
     {
-        if (! $tenant->hasDeployDomains()) {
-            return;
-        }
-
         app(LicenseService::class)->issuePendingLicensesForTenant($tenant);
     }
 
@@ -117,5 +130,56 @@ class TenantService
         $trimmed = trim($value);
 
         return $trimmed === '' ? null : $trimmed;
+    }
+
+    /**
+     * @param  mixed  $value
+     * @return list<string>
+     */
+    protected function normalizeExtraDomains(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = preg_split('/[\r\n,]+/', $value) ?: [];
+        }
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return collect($value)
+            ->map(fn ($domain) => $this->normalizeDomainInput(is_string($domain) ? $domain : null))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $productDomains
+     * @return array<string, array{frontend_domain: ?string, backend_domain: ?string}>
+     */
+    protected function normalizeProductDomains(array $productDomains): array
+    {
+        $normalized = [];
+
+        foreach ($productDomains as $slug => $pair) {
+            if (! is_string($slug) || $slug === '' || ! is_array($pair)) {
+                continue;
+            }
+
+            $frontend = $this->normalizeDomainInput($pair['frontend_domain'] ?? null);
+            $backend = $this->normalizeDomainInput($pair['backend_domain'] ?? null);
+
+            if ($frontend === null && $backend === null) {
+                continue;
+            }
+
+            $normalized[$slug] = [
+                'frontend_domain' => $frontend,
+                'backend_domain' => $backend,
+            ];
+        }
+
+        return $normalized;
     }
 }

@@ -103,13 +103,15 @@ class LicenseService
 
         $subscription->loadMissing(['plan', 'product', 'tenant', 'user']);
         $tenant = $this->resolveTenantForSubscription($subscription);
+        $product = $subscription->product;
 
-        if (! $tenant || ! $tenant->hasDeployDomains()) {
-            throw new \App\Exceptions\TenantDomainsRequiredException;
+        if (! $tenant || ! $tenant->hasDeployDomains($product)) {
+            throw new \App\Exceptions\TenantDomainsRequiredException(
+                'Assign SoftKatta Admin → Tenants domains for this product (Study Point / Kindergarten) before generating a license or running project setup.'
+            );
         }
 
         $plan = $subscription->plan;
-        $product = $subscription->product;
         $expires = null;
 
         if ($plan && $plan->billing_cycle->months() !== null) {
@@ -120,17 +122,18 @@ class LicenseService
         }
 
         $limits = $plan?->limits ?? [];
+        $domains = $tenant->deployDomains($product);
 
         return LicenseKey::create([
             'subscription_id' => $subscription->id,
             'product_id' => $subscription->product_id,
             'user_id' => $subscription->user_id,
             'license_key' => $this->generateKey($product),
-            'allowed_domains' => $tenant->deployDomains(),
+            'allowed_domains' => $domains,
             'max_devices' => $limits['max_devices'] ?? 1,
             'max_domains' => max(
                 (int) ($limits['max_domains'] ?? $limits['max_branches'] ?? 1),
-                count($tenant->deployDomains()),
+                count($domains),
             ),
             'product_version' => $product?->currentVersion(),
             'status' => LicenseStatus::Active,
@@ -142,15 +145,18 @@ class LicenseService
     }
 
     /**
-     * Sync license allowed_domains from SoftKatta Admin tenant domains.
+     * Sync license allowed_domains from SoftKatta Admin tenant domains for this product.
      */
     public function syncAllowedDomainsFromTenant(LicenseKey $license, Tenant $tenant): LicenseKey
     {
-        if (! $tenant->hasDeployDomains()) {
+        $license->loadMissing('product');
+        $product = $license->product;
+
+        if (! $tenant->hasDeployDomains($product)) {
             return $license;
         }
 
-        $domains = $tenant->deployDomains();
+        $domains = $tenant->deployDomains($product);
         $license->update([
             'allowed_domains' => $domains,
             'max_domains' => max((int) $license->max_domains, count($domains)),
@@ -190,10 +196,6 @@ class LicenseService
      */
     public function issuePendingLicensesForTenant(Tenant $tenant): int
     {
-        if (! $tenant->hasDeployDomains()) {
-            return 0;
-        }
-
         $created = 0;
 
         Subscription::query()
@@ -208,6 +210,11 @@ class LicenseService
             ->whereIn('status', [SubscriptionStatus::Active, SubscriptionStatus::Trial, SubscriptionStatus::ExpiringSoon])
             ->orderBy('id')
             ->each(function (Subscription $subscription) use ($tenant, &$created): void {
+                $product = $subscription->product;
+                if (! $tenant->hasDeployDomains($product)) {
+                    return;
+                }
+
                 if ($subscription->licenseKey) {
                     $this->syncAllowedDomainsFromTenant($subscription->licenseKey, $tenant);
 

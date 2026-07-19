@@ -65,25 +65,36 @@ class CompanyLicenseService
             return $tenantGate;
         }
 
-        // SoftKatta Admin domains are the source of truth — sync onto the license.
-        $tenant = $this->resolveTenantForLicense($license);
+        // SoftKatta Admin domains (product-scoped) are the source of truth — sync onto the license.
+        $tenant = $this->resolveTenantForLicense($license, $domain);
         if ($tenant) {
             $this->licenseService->syncAllowedDomainsFromTenant($license, $tenant);
             $license->refresh();
         }
 
-        // Permanent domain binding: if license already has a different domain set, request must match.
+        $license->loadMissing('product');
         $registered = collect($license->allowed_domains ?? [])
             ->map(fn ($d) => LicenseKey::normalizeDomain($d))
             ->filter()
             ->values();
+
+        // Prefer product-scoped SoftKatta Admin list for error messaging / match.
+        if ($tenant) {
+            $adminDomains = collect($tenant->deployDomains($license->product))
+                ->map(fn ($d) => LicenseKey::normalizeDomain($d))
+                ->filter()
+                ->values();
+            if ($adminDomains->isNotEmpty()) {
+                $registered = $adminDomains;
+            }
+        }
 
         if ($registered->isNotEmpty() && ! $registered->contains($domain)) {
             $this->log($integration, $request, $license, '/company/activate', false, 'DOMAIN_NOT_AUTHORIZED', 403, $domain, $fingerprint);
 
             return $this->error(
                 'DOMAIN_NOT_AUTHORIZED',
-                'Detected domain ['.$domain.'] does not match SoftKatta Admin domains ['.$registered->implode(', ').'].',
+                'Detected domain ['.$domain.'] does not match SoftKatta Admin domains ['.$registered->implode(', ').'] for this product. Project setup is only allowed on the assigned domains.',
                 403,
             );
         }
@@ -700,28 +711,33 @@ class CompanyLicenseService
     }
 
     /**
-     * SoftKatta Admin → Tenants domains are required and must match the install host.
+     * SoftKatta Admin → Tenants domains (per product) must match the install host.
      *
      * @return array{success: false, error_code: string, message: string, http_status: int}|null
      */
     protected function assertTenantDomainAuthorization(LicenseKey $license, string $domain): ?array
     {
-        $tenant = $this->resolveTenantForLicense($license);
+        $license->loadMissing('product');
+        $product = $license->product;
+        $tenant = $this->resolveTenantForLicense($license, $domain);
 
-        if (! $tenant || ! $tenant->hasDeployDomains()) {
+        if (! $tenant || ! $tenant->hasDeployDomains($product)) {
+            $productLabel = $product?->name ?? 'this product';
+
             return $this->error(
                 'TENANT_DOMAINS_REQUIRED',
-                'Assign frontend and backend domains for this customer in SoftKatta Admin → Tenants before project setup. License activation is blocked until domains are assigned.',
+                "Assign frontend and backend domains for {$productLabel} in SoftKatta Admin → Tenants (product domains) before project setup.",
                 403,
             );
         }
 
-        if (! $tenant->allowsDeployDomain($domain)) {
-            $assigned = implode(', ', $tenant->deployDomains());
+        if (! $tenant->allowsDeployDomain($domain, $product)) {
+            $assigned = implode(', ', $tenant->deployDomains($product));
+            $productLabel = $product?->name ?? 'this product';
 
             return $this->error(
                 'DOMAIN_NOT_AUTHORIZED',
-                "Detected domain [{$domain}] does not match SoftKatta Admin domains [{$assigned}]. Project setup is only allowed on the assigned domains.",
+                "Detected domain [{$domain}] does not match SoftKatta Admin domains [{$assigned}] for {$productLabel}. Study Point and Kindergarten must each have their own domains — setup is only allowed on the assigned domains.",
                 403,
             );
         }
@@ -729,19 +745,36 @@ class CompanyLicenseService
         return null;
     }
 
-    protected function resolveTenantForLicense(LicenseKey $license): ?Tenant
+    protected function resolveTenantForLicense(LicenseKey $license, ?string $forDomain = null): ?Tenant
     {
-        $license->loadMissing(['subscription.tenant', 'user']);
+        $license->loadMissing(['subscription.tenant', 'subscription.product', 'user', 'product']);
+        $product = $license->product ?? $license->subscription?->product;
+        $user = $license->user ?? $license->subscription?->user;
 
         $subscription = $license->subscription;
         if ($subscription) {
             $tenant = $this->licenseService->resolveTenantForSubscription($subscription);
             if ($tenant) {
-                return $tenant;
+                if ($forDomain === null || $tenant->allowsDeployDomain($forDomain, $product) || ! $tenant->hasDeployDomains($product)) {
+                    return $tenant;
+                }
             }
         }
 
-        $user = $license->user;
+        // Same customer may own multiple tenants — pick one that already allows this host for this product.
+        if ($user && $forDomain) {
+            $owned = Tenant::query()->where('owner_id', $user->id)->get();
+            $matching = $owned->first(fn (Tenant $tenant) => $tenant->allowsDeployDomain($forDomain, $product));
+            if ($matching) {
+                return $matching;
+            }
+
+            $withProductDomains = $owned->first(fn (Tenant $tenant) => $tenant->hasDeployDomains($product));
+            if ($withProductDomains) {
+                return $withProductDomains;
+            }
+        }
+
         if ($user?->tenant_id) {
             return Tenant::query()->find($user->tenant_id);
         }
