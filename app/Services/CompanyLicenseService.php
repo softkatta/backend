@@ -511,7 +511,7 @@ class CompanyLicenseService
             return $this->failResolve('DOMAIN_NOT_AUTHORIZED', 'Domain does not match this installation.', 403, $license, $installation);
         }
 
-        $tenantGate = $this->assertTenantDomainAuthorization($license, $domain);
+        $tenantGate = $this->assertTenantDomainAuthorization($license, $domain, $installation);
         if ($tenantGate !== null) {
             return $this->failResolve($tenantGate['error_code'], $tenantGate['message'], $tenantGate['http_status'], $license, $installation);
         }
@@ -731,7 +731,7 @@ class CompanyLicenseService
      *
      * @return array{success: false, error_code: string, message: string, http_status: int}|null
      */
-    protected function assertTenantDomainAuthorization(LicenseKey $license, string $domain): ?array
+    protected function assertTenantDomainAuthorization(LicenseKey $license, string $domain, ?LicenseInstallation $installation = null): ?array
     {
         $license->loadMissing(['product', 'subscription']);
         $product = $license->product;
@@ -739,6 +739,18 @@ class CompanyLicenseService
         $tenant = $this->resolveTenantForLicense($license, $domain);
 
         if (! $tenant || ! $tenant->hasDeployDomains($product, $subscription)) {
+            // Verify/heartbeat for an already-activated install: Admin subscription_domains
+            // may be empty after UI migrations — do not kill live sites with TENANT_DOMAINS_REQUIRED.
+            // New activate() still requires Admin domains (installation is null).
+            if ($installation !== null) {
+                if ($this->domainsEquivalent($domain, (string) $installation->domain)) {
+                    return null;
+                }
+                if ($license->isDomainAllowed($domain)) {
+                    return null;
+                }
+            }
+
             $productLabel = $product?->name ?? 'this product';
 
             return $this->error(
