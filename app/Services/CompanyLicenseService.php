@@ -70,6 +70,12 @@ class CompanyLicenseService
         if ($tenant) {
             $this->licenseService->syncAllowedDomainsFromTenant($license, $tenant);
             $license->refresh();
+
+            // Bind installation to the assigned host (SPA), not the API host alias.
+            $canonical = $tenant->matchingDeployDomain($domain, $license->product, $license->subscription);
+            if ($canonical) {
+                $domain = $canonical;
+            }
         }
 
         $license->loadMissing('product');
@@ -89,7 +95,11 @@ class CompanyLicenseService
             }
         }
 
-        if ($registered->isNotEmpty() && ! $registered->contains($domain)) {
+        $domainAllowed = $tenant
+            ? $tenant->allowsDeployDomain($domain, $license->product, $license->subscription)
+            : $registered->contains($domain);
+
+        if ($registered->isNotEmpty() && ! $domainAllowed) {
             $this->log($integration, $request, $license, '/company/activate', false, 'DOMAIN_NOT_AUTHORIZED', 403, $domain, $fingerprint);
 
             return $this->error(
@@ -330,7 +340,7 @@ class CompanyLicenseService
             return $this->error($context['error_code'], $context['message'], $context['http_status']);
         }
 
-        if ($domain !== $installation->domain) {
+        if (! $this->domainsEquivalent($domain, $installation->domain)) {
             return $this->error('DOMAIN_NOT_AUTHORIZED', 'Domain does not match this installation.', 403);
         }
 
@@ -497,7 +507,7 @@ class CompanyLicenseService
             return $this->failResolve($context['error_code'], $context['message'], $context['http_status'], $license);
         }
 
-        if ($domain === null || $domain === '' || $domain !== $installation->domain) {
+        if ($domain === null || $domain === '' || ! $this->domainsEquivalent($domain, $installation->domain)) {
             return $this->failResolve('DOMAIN_NOT_AUTHORIZED', 'Domain does not match this installation.', 403, $license, $installation);
         }
 
@@ -506,7 +516,11 @@ class CompanyLicenseService
             return $this->failResolve($tenantGate['error_code'], $tenantGate['message'], $tenantGate['http_status'], $license, $installation);
         }
 
-        if (! $license->isDomainAllowed($domain)) {
+        $tenant = $this->resolveTenantForLicense($license, $domain);
+        $domainAllowed = ($tenant && $tenant->allowsDeployDomain($domain, $license->product, $license->subscription))
+            || $license->isDomainAllowed($domain);
+
+        if (! $domainAllowed) {
             return $this->failResolve('DOMAIN_NOT_AUTHORIZED', 'This license is not valid for this domain.', 403, $license, $installation);
         }
 
@@ -786,6 +800,24 @@ class CompanyLicenseService
         }
 
         return null;
+    }
+
+    protected function domainsEquivalent(?string $left, ?string $right): bool
+    {
+        $left = LicenseKey::normalizeDomain($left);
+        $right = LicenseKey::normalizeDomain($right);
+        if ($left === null || $left === '' || $right === null || $right === '') {
+            return false;
+        }
+
+        if ($left === $right) {
+            return true;
+        }
+
+        $tenant = new Tenant;
+        $leftCandidates = $tenant->domainMatchCandidates($left);
+
+        return in_array($right, $leftCandidates, true);
     }
 
     protected function isLocalDevDomain(string $domain): bool

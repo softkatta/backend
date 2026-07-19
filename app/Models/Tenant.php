@@ -181,12 +181,71 @@ class Tenant extends Model
 
     public function allowsDeployDomain(?string $domain, ?Product $product = null, ?Subscription $subscription = null): bool
     {
+        return $this->matchingDeployDomain($domain, $product, $subscription) !== null;
+    }
+
+    /**
+     * Return the SoftKatta-assigned domain that matches the request host
+     * (exact or SPA/API pair alias).
+     */
+    public function matchingDeployDomain(?string $domain, ?Product $product = null, ?Subscription $subscription = null): ?string
+    {
         $normalized = LicenseKey::normalizeDomain($domain);
         if ($normalized === null || $normalized === '') {
-            return false;
+            return null;
         }
 
-        return in_array($normalized, $this->deployDomains($product, $subscription), true);
+        $allowed = $this->deployDomains($product, $subscription);
+        if ($allowed === []) {
+            return null;
+        }
+
+        foreach ($this->domainMatchCandidates($normalized) as $candidate) {
+            if (in_array($candidate, $allowed, true)) {
+                return $candidate;
+            }
+        }
+
+        foreach ($allowed as $assigned) {
+            if (in_array($normalized, $this->domainMatchCandidates($assigned), true)) {
+                return $assigned;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * SoftKatta split hosting: SPA and API often use paired hosts
+     * (study-point.* ↔ study-api.*, kinder.* ↔ kinder-api.*).
+     *
+     * @return list<string>
+     */
+    public function domainMatchCandidates(string $domain): array
+    {
+        $domain = strtolower($domain);
+        $candidates = [$domain];
+
+        if (str_starts_with($domain, 'www.')) {
+            $candidates[] = substr($domain, 4);
+        } else {
+            $candidates[] = 'www.'.$domain;
+        }
+
+        $pairs = [
+            ['study-point.', 'study-api.'],
+            ['study-api.', 'study-point.'],
+            ['kinder.', 'kinder-api.'],
+            ['kinder-api.', 'kinder.'],
+        ];
+
+        foreach ($pairs as [$from, $to]) {
+            if (str_starts_with($domain, $from)) {
+                $candidates[] = $to.substr($domain, strlen($from));
+            }
+        }
+
+        return array_values(array_unique(array_filter($candidates)));
     }
 
     /**

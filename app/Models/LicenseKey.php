@@ -110,7 +110,19 @@ class LicenseKey extends Model
             return false;
         }
 
-        return in_array($domain, $allowed, true);
+        if (in_array($domain, $allowed, true)) {
+            return true;
+        }
+
+        // SPA/API pair aliases (study-point ↔ study-api, kinder ↔ kinder-api)
+        $tenant = new Tenant;
+        foreach ($allowed as $assigned) {
+            if (in_array($domain, $tenant->domainMatchCandidates((string) $assigned), true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function hasRegisteredDomains(): bool
