@@ -529,7 +529,7 @@ Route::prefix('v1')->group(function (): void {
     // Company API — canonical product licensing contract
     // Rate limited: 60 requests/minute per IP
     // ---------------------------------------------------------------
-    Route::middleware(['throttle:60,1'])->prefix('company')->group(function (): void {
+    Route::middleware(['throttle:300,1'])->prefix('company')->group(function (): void {
         Route::middleware(['company.api'])->group(function (): void {
             Route::post('activate', [CompanyLicenseController::class, 'activate']);
             Route::post('refresh-token', [CompanyLicenseController::class, 'refreshToken']);
