@@ -2,10 +2,14 @@
 
 namespace App\Services;
 
+use App\Enums\SubscriptionStatus;
+use App\Models\Plan;
+use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class TenantService
 {
@@ -35,10 +39,6 @@ class TenantService
             'timezone' => 'Asia/Kolkata',
         ];
 
-        if (array_key_exists('subscription_domains', $data) && is_array($data['subscription_domains'])) {
-            $settings['subscription_domains'] = $this->normalizeSubscriptionDomains($data['subscription_domains']);
-        }
-
         $tenant = Tenant::create([
             'name' => $data['name'],
             'slug' => $slug,
@@ -53,7 +53,18 @@ class TenantService
         ]);
 
         $this->linkOwner($tenant, $ownerId);
-        $this->afterDomainsMaybeReady($tenant);
+
+        if (array_key_exists('subscription_domains', $data) && is_array($data['subscription_domains'])) {
+            $settings['subscription_domains'] = $this->normalizeSubscriptionDomains(
+                $data['subscription_domains'],
+                $tenant->fresh(),
+                $ownerId ? (int) $ownerId : null,
+            );
+            $settings = $this->clearPendingForApproved($settings);
+            $tenant->update(['settings' => $settings]);
+        }
+
+        $this->afterDomainsMaybeReady($tenant->fresh());
 
         return $tenant->fresh(['owner']);
     }
@@ -69,7 +80,13 @@ class TenantService
 
         if (array_key_exists('subscription_domains', $data) && is_array($data['subscription_domains'])) {
             $settings = is_array($tenant->settings) ? $tenant->settings : [];
-            $settings['subscription_domains'] = $this->normalizeSubscriptionDomains($data['subscription_domains']);
+            $ownerId = isset($data['owner_id']) ? $data['owner_id'] : $tenant->owner_id;
+            $settings['subscription_domains'] = $this->normalizeSubscriptionDomains(
+                $data['subscription_domains'],
+                $tenant,
+                $ownerId ? (int) $ownerId : null,
+            );
+            $settings = $this->clearPendingForApproved($settings);
             $data['settings'] = $settings;
             unset($data['subscription_domains']);
         }
@@ -129,17 +146,12 @@ class TenantService
      * @param  array<int|string, mixed>  $rows
      * @return array<string, array{subscription_id: int, product_id: int|null, frontend_domain: string, backend_domain: string}>
      */
-    protected function normalizeSubscriptionDomains(array $rows): array
+    protected function normalizeSubscriptionDomains(array $rows, Tenant $tenant, ?int $ownerId): array
     {
         $normalized = [];
 
         foreach ($rows as $key => $row) {
             if (! is_array($row)) {
-                continue;
-            }
-
-            $subscriptionId = (int) ($row['subscription_id'] ?? $key);
-            if ($subscriptionId <= 0) {
                 continue;
             }
 
@@ -149,19 +161,115 @@ class TenantService
                 continue;
             }
 
+            $subscriptionId = (int) ($row['subscription_id'] ?? 0);
+            if ($subscriptionId <= 0) {
+                $subscription = $this->createSubscriptionForDomainRow($row, $tenant, $ownerId);
+                $subscriptionId = (int) $subscription->id;
+            }
+
             $subscription = Subscription::query()->withoutGlobalScopes()->find($subscriptionId);
+            if (! $subscription) {
+                throw ValidationException::withMessages([
+                    'subscription_domains' => "Subscription #{$subscriptionId} was not found.",
+                ]);
+            }
+
+            // Keep purchase on this tenant workspace when domains are assigned.
+            if (! $subscription->tenant_id) {
+                $subscription->update(['tenant_id' => $tenant->id]);
+            }
+
             $productId = isset($row['product_id'])
                 ? (int) $row['product_id']
-                : ($subscription?->product_id);
+                : (int) $subscription->product_id;
 
             $normalized[(string) $subscriptionId] = [
                 'subscription_id' => $subscriptionId,
-                'product_id' => $productId,
+                'product_id' => $productId > 0 ? $productId : null,
                 'frontend_domain' => $frontend,
                 'backend_domain' => $backend,
             ];
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    protected function createSubscriptionForDomainRow(array $row, Tenant $tenant, ?int $ownerId): Subscription
+    {
+        if (! $ownerId) {
+            throw ValidationException::withMessages([
+                'owner_id' => 'Select a customer before adding product domains.',
+            ]);
+        }
+
+        $productId = (int) ($row['product_id'] ?? 0);
+        $planId = (int) ($row['plan_id'] ?? 0);
+        if ($productId <= 0 || $planId <= 0) {
+            throw ValidationException::withMessages([
+                'subscription_domains' => 'Each new domain row needs a product and plan (or an existing subscription).',
+            ]);
+        }
+
+        $product = Product::query()->find($productId);
+        $plan = Plan::query()->find($planId);
+        if (! $product || ! $plan) {
+            throw ValidationException::withMessages([
+                'subscription_domains' => 'Selected product or plan was not found.',
+            ]);
+        }
+
+        if ((int) $plan->product_id !== (int) $product->id) {
+            throw ValidationException::withMessages([
+                'subscription_domains' => 'Selected plan does not belong to this product.',
+            ]);
+        }
+
+        $startsAt = now();
+        $endsAt = match ($plan->billing_cycle->value) {
+            'yearly' => $startsAt->copy()->addYear(),
+            'monthly' => $startsAt->copy()->addMonth(),
+            default => $startsAt->copy()->addMonth(),
+        };
+
+        return Subscription::create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $ownerId,
+            'product_id' => $product->id,
+            'plan_id' => $plan->id,
+            'status' => SubscriptionStatus::Active,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'trial_ends_at' => null,
+            'auto_renew' => true,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    protected function clearPendingForApproved(array $settings): array
+    {
+        $approved = is_array($settings['subscription_domains'] ?? null)
+            ? $settings['subscription_domains']
+            : [];
+        $pending = is_array($settings['pending_subscription_domains'] ?? null)
+            ? $settings['pending_subscription_domains']
+            : [];
+        $skips = is_array($settings['subscription_domain_skips'] ?? null)
+            ? $settings['subscription_domain_skips']
+            : [];
+
+        foreach (array_keys($approved) as $subscriptionId) {
+            unset($pending[(string) $subscriptionId], $skips[(string) $subscriptionId]);
+        }
+
+        $settings['pending_subscription_domains'] = $pending;
+        $settings['subscription_domain_skips'] = $skips;
+
+        return $settings;
     }
 }

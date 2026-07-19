@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Tenant;
 use App\Services\SecurityService;
+use App\Services\TenantDomainRequestService;
 use App\Services\TenantService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,52 @@ class TenantController extends BaseApiController
         );
     }
 
+    public function pendingDomains(TenantDomainRequestService $domainRequests): JsonResponse
+    {
+        return $this->success($domainRequests->listPending());
+    }
+
+    public function approvePendingDomain(
+        Request $request,
+        Tenant $tenant,
+        int $subscription,
+        TenantDomainRequestService $domainRequests,
+        SecurityService $security,
+    ): JsonResponse {
+        $query = Tenant::query();
+        $security->applyAdminWorkspaceScope($query, $request, 'id');
+        $scopedTenant = $query->findOrFail($tenant->id);
+
+        $status = $domainRequests->approve($scopedTenant, $subscription, $request->user());
+
+        return $this->success($status, 'Domains approved. License keys will generate if eligible.');
+    }
+
+    public function rejectPendingDomain(
+        Request $request,
+        Tenant $tenant,
+        int $subscription,
+        TenantDomainRequestService $domainRequests,
+        SecurityService $security,
+    ): JsonResponse {
+        $query = Tenant::query();
+        $security->applyAdminWorkspaceScope($query, $request, 'id');
+        $scopedTenant = $query->findOrFail($tenant->id);
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $status = $domainRequests->reject(
+            $scopedTenant,
+            $subscription,
+            $request->user(),
+            $data['reason'] ?? null,
+        );
+
+        return $this->success($status, 'Domain request rejected. Customer can resubmit.');
+    }
+
     public function store(Request $request, TenantService $service, SecurityService $security): JsonResponse
     {
         if ($security->adminWorkspaceMode($request) === 'demo') {
@@ -34,8 +81,9 @@ class TenantController extends BaseApiController
             'status' => ['nullable', 'string', 'in:active,suspended,inactive'],
             'settings' => ['nullable', 'array'],
             'subscription_domains' => ['nullable', 'array'],
-            'subscription_domains.*.subscription_id' => ['required', 'integer', 'exists:subscriptions,id'],
+            'subscription_domains.*.subscription_id' => ['nullable', 'integer', 'exists:subscriptions,id'],
             'subscription_domains.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'subscription_domains.*.plan_id' => ['nullable', 'integer', 'exists:plans,id'],
             'subscription_domains.*.frontend_domain' => ['required', 'string', 'max:255'],
             'subscription_domains.*.backend_domain' => ['required', 'string', 'max:255'],
         ]);
@@ -70,8 +118,9 @@ class TenantController extends BaseApiController
             'status' => ['nullable', 'string', 'in:active,suspended,inactive'],
             'settings' => ['nullable', 'array'],
             'subscription_domains' => ['nullable', 'array'],
-            'subscription_domains.*.subscription_id' => ['required', 'integer', 'exists:subscriptions,id'],
+            'subscription_domains.*.subscription_id' => ['nullable', 'integer', 'exists:subscriptions,id'],
             'subscription_domains.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'subscription_domains.*.plan_id' => ['nullable', 'integer', 'exists:plans,id'],
             'subscription_domains.*.frontend_domain' => ['required', 'string', 'max:255'],
             'subscription_domains.*.backend_domain' => ['required', 'string', 'max:255'],
         ]);

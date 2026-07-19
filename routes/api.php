@@ -179,6 +179,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('subscriptions', [ClientSubscriptionController::class, 'index']);
         Route::get('subscriptions/{subscription}', [ClientSubscriptionController::class, 'show']);
         Route::post('subscriptions/{subscription}/cancel', [ClientSubscriptionController::class, 'cancel']);
+        Route::get('subscriptions/{subscription}/domains', [ClientSubscriptionController::class, 'domainStatus']);
+        Route::post('subscriptions/{subscription}/domains', [ClientSubscriptionController::class, 'submitDomains']);
+        Route::post('subscriptions/{subscription}/domains/skip', [ClientSubscriptionController::class, 'skipDomains']);
 
         Route::get('invoices', [ClientInvoiceController::class, 'index']);
         Route::get('invoices/{invoice}', [ClientInvoiceController::class, 'show']);
@@ -412,6 +415,9 @@ Route::prefix('v1')->group(function (): void {
         Route::post('notifications', [AdminNotificationController::class, 'store']);
         Route::delete('notifications/{notification}', [AdminNotificationController::class, 'destroy']);
 
+        Route::get('tenants/pending-domains', [TenantController::class, 'pendingDomains']);
+        Route::post('tenants/{tenant}/pending-domains/{subscription}/approve', [TenantController::class, 'approvePendingDomain']);
+        Route::post('tenants/{tenant}/pending-domains/{subscription}/reject', [TenantController::class, 'rejectPendingDomain']);
         Route::apiResource('tenants', TenantController::class);
         Route::apiResource('users', AdminUserController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
 

@@ -71,7 +71,12 @@ class SecurityService
             return $query->where($tenantColumn, $demoTenantId);
         }
 
-        return $query->where($tenantColumn, '!=', $demoTenantId);
+        // Live: exclude demo. Include NULL tenant_id — new customers/purchases often
+        // have no workspace yet; SQL `!=` alone drops those rows.
+        return $query->where(function (Builder $scoped) use ($tenantColumn, $demoTenantId) {
+            $scoped->whereNull($tenantColumn)
+                ->orWhere($tenantColumn, '!=', $demoTenantId);
+        });
     }
 
     public function isTenantAllowedForAdminWorkspace(?string $tenantId, Request $request): bool
@@ -83,8 +88,9 @@ class SecurityService
             return $mode === 'live';
         }
 
+        // Unassigned customers (no tenant yet) belong in live workspace, not demo.
         if (! is_string($tenantId) || trim($tenantId) === '') {
-            return false;
+            return $mode === 'live';
         }
 
         if ($mode === 'demo') {
