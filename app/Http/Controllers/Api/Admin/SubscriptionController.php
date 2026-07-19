@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Api\BaseApiController;
@@ -23,7 +24,7 @@ class SubscriptionController extends BaseApiController
     public function index(Request $request, SecurityService $security): JsonResponse
     {
         $query = Subscription::withoutGlobalScopes()
-            ->with(['user', 'product', 'plan', 'tenant', 'licenseKey'])
+            ->with(['user', 'product', 'plan', 'tenant', 'licenseKey', 'invoices.payments'])
             ->latest();
         $security->applyAdminWorkspaceScope($query, $request);
 
@@ -32,10 +33,34 @@ class SubscriptionController extends BaseApiController
         }
 
         $perPage = min(100, max(1, $request->integer('per_page', 20)));
+        $paginator = $query->paginate($perPage);
 
-        return $this->success(
-            $query->paginate($perPage)
-        );
+        $paginator->getCollection()->transform(function (Subscription $subscription) {
+            $invoice = $subscription->invoices->sortByDesc('id')->first();
+            $invoiceTotal = $invoice ? round((float) $invoice->total_amount, 2) : 0.0;
+            $amountPaid = $invoice
+                ? round((float) $invoice->payments
+                    ->filter(fn ($payment) => $payment->status === PaymentStatus::Completed)
+                    ->sum('amount'), 2)
+                : 0.0;
+            $amountDue = round(max(0, $invoiceTotal - $amountPaid), 2);
+
+            $paymentStatus = 'none';
+            if ($invoice) {
+                $paymentStatus = $amountDue <= 0 ? 'paid' : ($amountPaid > 0 ? 'partial' : 'pending');
+            }
+
+            $subscription->setAttribute('invoice_id', $invoice?->id);
+            $subscription->setAttribute('invoice_total', $invoiceTotal);
+            $subscription->setAttribute('amount_paid', $amountPaid);
+            $subscription->setAttribute('amount_due', $amountDue);
+            $subscription->setAttribute('payment_status', $paymentStatus);
+            $subscription->unsetRelation('invoices');
+
+            return $subscription;
+        });
+
+        return $this->success($paginator);
     }
 
     public function show(Request $request, Subscription $subscription, SecurityService $security): JsonResponse
@@ -60,8 +85,6 @@ class SubscriptionController extends BaseApiController
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'auto_renew' => ['sometimes', 'boolean'],
             'apply_trial' => ['sometimes', 'boolean'],
-            'payment_method' => ['sometimes', 'string', 'in:cash,cheque,manual,bank_transfer'],
-            'payment_reference' => ['nullable', 'string', 'max:120'],
             'create_billing' => ['sometimes', 'boolean'],
         ]);
 
@@ -121,10 +144,8 @@ class SubscriptionController extends BaseApiController
 
         $createBilling = $data['create_billing'] ?? true;
         if ($createBilling) {
-            $billingAdmin->createPaidBillingForSubscription(
+            $billingAdmin->createPendingBillingForSubscription(
                 $subscription->fresh(['user', 'product', 'plan']),
-                $data['payment_method'] ?? 'cash',
-                $data['payment_reference'] ?? null,
             );
         }
 
@@ -135,7 +156,7 @@ class SubscriptionController extends BaseApiController
             } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
                 return $this->success(
                     $subscription->load(['user', 'product', 'plan', 'tenant', 'invoices']),
-                    'Subscription created with order, invoice, and payment. Assign frontend + backend domains on the customer tenant before a license can be generated.',
+                    'Subscription created with pending order/invoice/payment. Record payment when cash, cheque, or online is received. Assign domains before a license can be generated.',
                     201
                 );
             }
@@ -144,7 +165,7 @@ class SubscriptionController extends BaseApiController
         return $this->success(
             $subscription->load(['user', 'product', 'plan', 'tenant', 'invoices']),
             $createBilling
-                ? 'Subscription created with order, invoice, and payment.'
+                ? 'Subscription created. Order, invoice, and payment are pending until you record receipt.'
                 : 'Subscription created.',
             201
         );
@@ -225,14 +246,12 @@ class SubscriptionController extends BaseApiController
         $scoped = $query->findOrFail($subscription->id);
 
         $data = $request->validate([
-            'payment_method' => ['sometimes', 'string', 'in:cash,cheque,manual,bank_transfer'],
+            'payment_method' => ['sometimes', 'string', 'in:cash,cheque,manual,bank_transfer,online'],
             'payment_reference' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $result = $billingAdmin->createPaidBillingForSubscription(
+        $result = $billingAdmin->createPendingBillingForSubscription(
             $scoped->load(['user', 'product', 'plan']),
-            $data['payment_method'] ?? 'cash',
-            $data['payment_reference'] ?? null,
         );
 
         return $this->success(
@@ -242,7 +261,7 @@ class SubscriptionController extends BaseApiController
                 'invoice' => $result['invoice'],
                 'payment' => $result['payment'],
             ],
-            'Billing records created for this subscription.',
+            'Pending billing records created for this subscription.',
         );
     }
 

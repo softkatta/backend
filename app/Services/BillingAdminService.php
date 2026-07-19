@@ -18,16 +18,13 @@ use Illuminate\Validation\ValidationException;
 class BillingAdminService
 {
     /**
-     * Create Order + Invoice + Payment for an admin-assigned subscription
-     * so it appears under Admin → Orders / Invoices / Payments.
+     * Create Order + Invoice + pending Payment for an admin-assigned subscription.
+     * Payment stays pending until admin records cash / cheque / online receipt.
      *
      * @return array{order: Order, invoice: Invoice, payment: ?Payment}
      */
-    public function createPaidBillingForSubscription(
-        Subscription $subscription,
-        string $paymentMethod = 'cash',
-        ?string $reference = null,
-    ): array {
+    public function createPendingBillingForSubscription(Subscription $subscription): array
+    {
         $subscription->loadMissing(['user', 'product', 'plan']);
 
         $existingInvoice = Invoice::withoutGlobalScopes()
@@ -39,7 +36,6 @@ class BillingAdminService
             $existingInvoice->loadMissing('order');
             $payment = Payment::withoutGlobalScopes()
                 ->where('invoice_id', $existingInvoice->id)
-                ->where('status', PaymentStatus::Completed)
                 ->latest('id')
                 ->first();
 
@@ -60,11 +56,7 @@ class BillingAdminService
             ]);
         }
 
-        $paymentMethod = in_array($paymentMethod, ['cash', 'cheque', 'manual', 'bank_transfer'], true)
-            ? $paymentMethod
-            : 'cash';
-
-        return DB::transaction(function () use ($subscription, $user, $product, $plan, $paymentMethod, $reference) {
+        return DB::transaction(function () use ($subscription, $user, $product, $plan) {
             $amount = round((float) $plan->price, 2);
             $taxRate = app(InvoiceProfileService::class)->gstRate();
             $taxAmount = round($amount * ($taxRate / 100), 2);
@@ -80,48 +72,55 @@ class BillingAdminService
                 'discount_amount' => 0,
                 'tax_amount' => $taxAmount,
                 'total_amount' => $totalAmount,
-                'status' => 'completed',
-                'payment_gateway' => $paymentMethod,
+                'status' => 'pending',
+                'payment_gateway' => 'manual',
             ]);
 
             $invoice = app(InvoiceService::class)->generateFromOrder($order, $subscription, [
                 'item_description' => "{$product->name} — {$plan->name} ({$plan->billing_cycle->label()}) [Admin assigned]",
-                'due_date' => now()->toDateString(),
+                'due_date' => now()->addDays(7)->toDateString(),
             ]);
 
-            $transactionId = $this->manualTransactionId($paymentMethod, $invoice, $reference);
-            $order->update(['payment_id' => $transactionId]);
+            $invoice->update(['status' => InvoiceStatus::Sent]);
 
-            $invoice = app(InvoiceService::class)->markAsPaid($invoice);
-            $payment = Payment::withoutGlobalScopes()
-                ->where('invoice_id', $invoice->id)
-                ->where('status', PaymentStatus::Completed)
-                ->latest('id')
-                ->first();
-
-            if ($payment && $paymentMethod !== 'manual') {
-                $payment->update([
-                    'gateway' => $paymentMethod,
-                    'transaction_id' => $transactionId,
-                    'gateway_response' => array_filter([
-                        'source' => 'admin_subscription_create',
-                        'payment_method' => $paymentMethod,
-                        'reference' => $reference,
-                        'recorded_at' => now()->toIso8601String(),
-                    ]),
-                ]);
-            }
+            $payment = Payment::create([
+                'tenant_id' => $order->tenant_id,
+                'user_id' => $user->id,
+                'order_id' => $order->id,
+                'invoice_id' => $invoice->id,
+                'gateway' => 'manual',
+                'transaction_id' => 'PENDING-'.$invoice->invoice_number,
+                'amount' => $totalAmount,
+                'status' => PaymentStatus::Pending,
+                'gateway_response' => [
+                    'source' => 'admin_subscription_create',
+                    'recorded_at' => now()->toIso8601String(),
+                ],
+            ]);
 
             return [
                 'order' => $order->fresh(),
                 'invoice' => $invoice->fresh(['items']),
-                'payment' => $payment?->fresh(),
+                'payment' => $payment->fresh(),
             ];
         });
     }
 
     /**
-     * @return array{payment: Payment, invoice: Invoice}
+     * @deprecated Use createPendingBillingForSubscription — kept for older callers.
+     *
+     * @return array{order: Order, invoice: Invoice, payment: ?Payment}
+     */
+    public function createPaidBillingForSubscription(
+        Subscription $subscription,
+        string $paymentMethod = 'cash',
+        ?string $reference = null,
+    ): array {
+        return $this->createPendingBillingForSubscription($subscription);
+    }
+
+    /**
+     * @return array{payment: Payment, invoice: Invoice, amount_due: float}
      */
     public function recordManualPayment(
         Invoice $invoice,
@@ -129,6 +128,7 @@ class BillingAdminService
         ?string $reference = null,
         ?string $notes = null,
         ?Carbon $paidAt = null,
+        ?float $amount = null,
     ): array {
         if ($invoice->status === InvoiceStatus::Paid) {
             throw ValidationException::withMessages([
@@ -136,31 +136,65 @@ class BillingAdminService
             ]);
         }
 
-        return DB::transaction(function () use ($invoice, $paymentMethod, $reference, $notes, $paidAt) {
+        $paymentMethod = in_array($paymentMethod, ['cash', 'cheque', 'online', 'bank_transfer', 'manual'], true)
+            ? $paymentMethod
+            : 'cash';
+
+        return DB::transaction(function () use ($invoice, $paymentMethod, $reference, $notes, $paidAt, $amount) {
             $paidAt ??= now();
             $invoice->loadMissing('order');
 
+            $invoiceTotal = round((float) $invoice->total_amount, 2);
+            $alreadyPaid = round((float) Payment::withoutGlobalScopes()
+                ->where('invoice_id', $invoice->id)
+                ->where('status', PaymentStatus::Completed)
+                ->sum('amount'), 2);
+            $remaining = round($invoiceTotal - $alreadyPaid, 2);
+
+            if ($remaining <= 0) {
+                throw ValidationException::withMessages([
+                    'invoice' => ['This invoice has no remaining balance.'],
+                ]);
+            }
+
+            $payAmount = $amount !== null ? round($amount, 2) : $remaining;
+            if ($payAmount <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => ['Enter a payment amount greater than zero.'],
+                ]);
+            }
+            if ($payAmount > $remaining) {
+                throw ValidationException::withMessages([
+                    'amount' => ["Amount cannot exceed remaining due ({$remaining})."],
+                ]);
+            }
+
+            // Clear placeholder pending rows — remaining balance is recreated if needed.
             Payment::withoutGlobalScopes()
                 ->where('invoice_id', $invoice->id)
                 ->where('status', PaymentStatus::Pending)
                 ->delete();
 
-            $invoice->update([
-                'status' => InvoiceStatus::Paid,
-                'paid_at' => $paidAt,
-            ]);
-
             $transactionId = $this->manualTransactionId($paymentMethod, $invoice, $reference);
+            $fullyPaid = $payAmount >= $remaining;
 
             if ($invoice->order) {
                 $invoice->order->update([
-                    'status' => 'completed',
+                    'status' => $fullyPaid ? 'completed' : 'pending',
                     'payment_gateway' => $paymentMethod,
-                    'payment_id' => $transactionId,
+                    'payment_id' => $fullyPaid ? $transactionId : ($invoice->order->payment_id),
                 ]);
             }
 
-            $this->activateSubscriptionForInvoice($invoice);
+            if ($fullyPaid) {
+                $invoice->update([
+                    'status' => InvoiceStatus::Paid,
+                    'paid_at' => $paidAt,
+                ]);
+                $this->activateSubscriptionForInvoice($invoice);
+            } elseif ($invoice->status === InvoiceStatus::Draft) {
+                $invoice->update(['status' => InvoiceStatus::Sent]);
+            }
 
             $payment = Payment::create([
                 'tenant_id' => $invoice->tenant_id,
@@ -169,7 +203,7 @@ class BillingAdminService
                 'invoice_id' => $invoice->id,
                 'gateway' => $paymentMethod,
                 'transaction_id' => $transactionId,
-                'amount' => $invoice->total_amount,
+                'amount' => $payAmount,
                 'status' => PaymentStatus::Completed,
                 'gateway_response' => array_filter([
                     'source' => 'admin_manual',
@@ -177,12 +211,33 @@ class BillingAdminService
                     'reference' => $reference,
                     'notes' => $notes,
                     'recorded_at' => now()->toIso8601String(),
+                    'invoice_total' => $invoiceTotal,
+                    'previously_paid' => $alreadyPaid,
                 ]),
             ]);
+
+            $newRemaining = round($remaining - $payAmount, 2);
+            if ($newRemaining > 0) {
+                Payment::create([
+                    'tenant_id' => $invoice->tenant_id,
+                    'user_id' => $invoice->user_id,
+                    'order_id' => $invoice->order_id,
+                    'invoice_id' => $invoice->id,
+                    'gateway' => 'manual',
+                    'transaction_id' => 'PENDING-'.$invoice->invoice_number.'-'.time(),
+                    'amount' => $newRemaining,
+                    'status' => PaymentStatus::Pending,
+                    'gateway_response' => [
+                        'source' => 'admin_partial_balance',
+                        'recorded_at' => now()->toIso8601String(),
+                    ],
+                ]);
+            }
 
             return [
                 'payment' => $payment->fresh(['user', 'order', 'invoice']),
                 'invoice' => $invoice->fresh(['user', 'order']),
+                'amount_due' => $newRemaining,
             ];
         });
     }
@@ -234,6 +289,15 @@ class BillingAdminService
     public function resolveInvoiceForManualPayment(?string $invoiceId, ?string $orderId, ?string $subscriptionId = null): Invoice
     {
         if ($subscriptionId) {
+            $invoiceBySubscription = Invoice::withoutGlobalScopes()
+                ->where('subscription_id', $subscriptionId)
+                ->latest('id')
+                ->first();
+
+            if ($invoiceBySubscription) {
+                return $invoiceBySubscription;
+            }
+
             $subscription = Subscription::withoutGlobalScopes()->findOrFail($subscriptionId);
 
             $order = Order::withoutGlobalScopes()

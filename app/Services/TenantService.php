@@ -247,9 +247,8 @@ class TenantService
         ]);
 
         try {
-            app(BillingAdminService::class)->createPaidBillingForSubscription(
+            app(BillingAdminService::class)->createPendingBillingForSubscription(
                 $subscription->fresh(['user', 'product', 'plan']),
-                'cash',
             );
         } catch (\Throwable) {
             // Domain assignment should still succeed even if billing records fail.

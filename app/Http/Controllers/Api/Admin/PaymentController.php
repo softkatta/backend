@@ -61,9 +61,15 @@ class PaymentController extends BaseApiController
             $request->input('reference'),
             $request->input('notes'),
             $paidAt,
+            $request->filled('amount') ? (float) $request->input('amount') : null,
         );
 
-        return $this->success($result, 'Payment recorded successfully.', 201);
+        $due = (float) ($result['amount_due'] ?? 0);
+        $message = $due > 0
+            ? 'Partial payment recorded. Remaining balance is still pending.'
+            : 'Payment recorded successfully.';
+
+        return $this->success($result, $message, 201);
     }
 
     public function show(Request $request, Payment $payment, SecurityService $security): JsonResponse
