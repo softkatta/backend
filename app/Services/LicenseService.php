@@ -9,6 +9,7 @@ use App\Models\LicenseInstallation;
 use App\Models\LicenseKey;
 use App\Models\Product;
 use App\Models\Subscription;
+use App\Models\Tenant;
 use Illuminate\Support\Str;
 
 class LicenseService
@@ -88,6 +89,10 @@ class LicenseService
 
     /**
      * Generate (or retrieve) a LicenseKey for the given subscription.
+     *
+     * Requires SoftKatta Admin → Tenants frontend + backend domains for the customer workspace.
+     *
+     * @throws \App\Exceptions\TenantDomainsRequiredException
      */
     public function generateForSubscription(Subscription $subscription): LicenseKey
     {
@@ -96,7 +101,13 @@ class LicenseService
             return $existing;
         }
 
-        $subscription->loadMissing(['plan', 'product']);
+        $subscription->loadMissing(['plan', 'product', 'tenant', 'user']);
+        $tenant = $this->resolveTenantForSubscription($subscription);
+
+        if (! $tenant || ! $tenant->hasDeployDomains()) {
+            throw new \App\Exceptions\TenantDomainsRequiredException;
+        }
+
         $plan = $subscription->plan;
         $product = $subscription->product;
         $expires = null;
@@ -115,9 +126,12 @@ class LicenseService
             'product_id' => $subscription->product_id,
             'user_id' => $subscription->user_id,
             'license_key' => $this->generateKey($product),
-            'allowed_domains' => [],
+            'allowed_domains' => $tenant->deployDomains(),
             'max_devices' => $limits['max_devices'] ?? 1,
-            'max_domains' => $limits['max_domains'] ?? $limits['max_branches'] ?? 1,
+            'max_domains' => max(
+                (int) ($limits['max_domains'] ?? $limits['max_branches'] ?? 1),
+                count($tenant->deployDomains()),
+            ),
             'product_version' => $product?->currentVersion(),
             'status' => LicenseStatus::Active,
             'is_product_active' => true,
@@ -125,6 +139,90 @@ class LicenseService
             'expires_at' => $expires,
             'activation_count' => 0,
         ]);
+    }
+
+    /**
+     * Sync license allowed_domains from SoftKatta Admin tenant domains.
+     */
+    public function syncAllowedDomainsFromTenant(LicenseKey $license, Tenant $tenant): LicenseKey
+    {
+        if (! $tenant->hasDeployDomains()) {
+            return $license;
+        }
+
+        $domains = $tenant->deployDomains();
+        $license->update([
+            'allowed_domains' => $domains,
+            'max_domains' => max((int) $license->max_domains, count($domains)),
+        ]);
+
+        return $license->fresh();
+    }
+
+    public function resolveTenantForSubscription(Subscription $subscription): ?Tenant
+    {
+        $subscription->loadMissing(['tenant', 'user']);
+
+        if ($subscription->tenant) {
+            return $subscription->tenant;
+        }
+
+        if ($subscription->tenant_id) {
+            return Tenant::query()->find($subscription->tenant_id);
+        }
+
+        $user = $subscription->user;
+        if ($user?->tenant_id) {
+            return Tenant::query()->find($user->tenant_id);
+        }
+
+        if ($user) {
+            return Tenant::query()->where('owner_id', $user->id)->latest('created_at')->first();
+        }
+
+        return null;
+    }
+
+    /**
+     * Try to issue licenses for active subscriptions once tenant domains are assigned.
+     *
+     * @return int Number of licenses newly created
+     */
+    public function issuePendingLicensesForTenant(Tenant $tenant): int
+    {
+        if (! $tenant->hasDeployDomains()) {
+            return 0;
+        }
+
+        $created = 0;
+
+        Subscription::query()
+            ->withoutGlobalScopes()
+            ->with(['plan', 'product', 'licenseKey'])
+            ->where(function ($query) use ($tenant) {
+                $query->where('tenant_id', $tenant->id);
+                if ($tenant->owner_id) {
+                    $query->orWhere('user_id', $tenant->owner_id);
+                }
+            })
+            ->whereIn('status', [SubscriptionStatus::Active, SubscriptionStatus::Trial, SubscriptionStatus::ExpiringSoon])
+            ->orderBy('id')
+            ->each(function (Subscription $subscription) use ($tenant, &$created): void {
+                if ($subscription->licenseKey) {
+                    $this->syncAllowedDomainsFromTenant($subscription->licenseKey, $tenant);
+
+                    return;
+                }
+
+                try {
+                    $this->generateForSubscription($subscription);
+                    $created++;
+                } catch (\App\Exceptions\TenantDomainsRequiredException) {
+                    // ignore
+                }
+            });
+
+        return $created;
     }
 
     /**

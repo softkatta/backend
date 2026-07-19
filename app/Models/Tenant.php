@@ -64,4 +64,40 @@ class Tenant extends Model
     {
         return $this->hasMany(SupportTicket::class);
     }
+
+    /**
+     * Normalized SoftKatta-admin domains used for license binding / install checks.
+     *
+     * @return list<string>
+     */
+    public function deployDomains(): array
+    {
+        return collect([$this->frontend_domain, $this->backend_domain, $this->domain])
+            ->map(fn ($domain) => LicenseKey::normalizeDomain(is_string($domain) ? $domain : null))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Both frontend and backend domains must be set before license / project setup.
+     */
+    public function hasDeployDomains(): bool
+    {
+        $frontend = LicenseKey::normalizeDomain($this->frontend_domain ?: $this->domain);
+        $backend = LicenseKey::normalizeDomain($this->backend_domain);
+
+        return $frontend !== null && $frontend !== '' && $backend !== null && $backend !== '';
+    }
+
+    public function allowsDeployDomain(?string $domain): bool
+    {
+        $normalized = LicenseKey::normalizeDomain($domain);
+        if ($normalized === null || $normalized === '') {
+            return false;
+        }
+
+        return in_array($normalized, $this->deployDomains(), true);
+    }
 }

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\BillingAdminService;
 use App\Services\LicenseService;
 use App\Services\SecurityService;
+use App\Services\SubscriptionRenewalService;
 use App\Services\TenantService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -109,9 +110,17 @@ class SubscriptionController extends BaseApiController
             'auto_renew' => $data['auto_renew'] ?? true,
         ]);
 
-        // Auto-generate license key for active/trial subscriptions
+        // Auto-generate license only when SoftKatta Admin has assigned tenant domains.
         if (in_array($subscription->status, [SubscriptionStatus::Active, SubscriptionStatus::Trial])) {
-            app(LicenseService::class)->generateForSubscription($subscription);
+            try {
+                app(LicenseService::class)->generateForSubscription($subscription);
+            } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
+                return $this->success(
+                    $subscription->load(['user', 'product', 'plan', 'tenant']),
+                    'Subscription created. Assign frontend + backend domains on the customer tenant before a license can be generated or the project can be set up.',
+                    201
+                );
+            }
         }
 
         return $this->success(
@@ -166,7 +175,7 @@ class SubscriptionController extends BaseApiController
         );
     }
 
-    public function cancel(Subscription $subscription): JsonResponse
+    public function cancel(Subscription $subscription, SubscriptionRenewalService $renewals): JsonResponse
     {
         $subscription->update([
             'auto_renew' => false,
@@ -174,9 +183,11 @@ class SubscriptionController extends BaseApiController
             'status' => SubscriptionStatus::ExpiringSoon,
         ]);
 
+        $renewals->cancelOpenRenewalInvoices($subscription);
+
         return $this->success(
             $subscription->fresh()->load(['user', 'product', 'plan', 'tenant']),
-            'Subscription cancelled.'
+            'Subscription cancelled. Open renewal invoices were cancelled; access continues until expiry.'
         );
     }
 

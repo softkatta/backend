@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Enums\SubscriptionStatus;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Invoice;
-use App\Models\Subscription;
 use App\Services\BillingAdminService;
 use App\Services\InvoiceService;
+use App\Services\PurchaseService;
 use App\Services\SecurityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,8 +36,13 @@ class InvoiceController extends BaseApiController
         return $this->success($service->toDetailArray($invoice));
     }
 
-    public function update(Request $request, Invoice $invoice, InvoiceService $service, SecurityService $security): JsonResponse
-    {
+    public function update(
+        Request $request,
+        Invoice $invoice,
+        InvoiceService $service,
+        PurchaseService $purchaseService,
+        SecurityService $security,
+    ): JsonResponse {
         $invoiceQuery = Invoice::withoutGlobalScopes();
         $security->applyAdminWorkspaceScope($invoiceQuery, $request);
         $scopedInvoice = $invoiceQuery->findOrFail($invoice->id);
@@ -55,16 +59,8 @@ class InvoiceController extends BaseApiController
 
             if ($scopedInvoice->order) {
                 $scopedInvoice->order->update(['status' => 'completed']);
-            }
-
-            if ($scopedInvoice->order?->product_id) {
-                Subscription::query()
-                    ->where('user_id', $scopedInvoice->user_id)
-                    ->where('product_id', $scopedInvoice->order->product_id)
-                    ->where('status', SubscriptionStatus::Pending)
-                    ->latest('id')
-                    ->limit(1)
-                    ->update(['status' => SubscriptionStatus::Active]);
+                // Renewal invoices extend ends_at; first purchases activate — only after paid.
+                $purchaseService->fulfillPaidOrder($scopedInvoice->order->fresh(['invoice']));
             }
         } else {
             $scopedInvoice->update($data);

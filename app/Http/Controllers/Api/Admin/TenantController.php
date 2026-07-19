@@ -33,14 +33,14 @@ class TenantController extends BaseApiController
             'domain' => ['nullable', 'string', 'max:255', 'unique:tenants,domain'],
             'backend_domain' => ['nullable', 'string', 'max:255', 'unique:tenants,backend_domain'],
             'frontend_domain' => ['nullable', 'string', 'max:255', 'unique:tenants,frontend_domain'],
-            'owner_id' => ['nullable', 'exists:users,id'],
+            'owner_id' => ['required', 'exists:users,id'],
             'status' => ['nullable', 'string', 'in:active,suspended,inactive'],
             'settings' => ['nullable', 'array'],
         ]);
 
         $tenant = $service->create($data);
 
-        return $this->success($tenant, 'Tenant created.', 201);
+        return $this->success($tenant->load('owner:id,name,email'), 'Tenant created.', 201);
     }
 
     public function show(Request $request, Tenant $tenant, SecurityService $security): JsonResponse
@@ -63,13 +63,14 @@ class TenantController extends BaseApiController
             'domain' => ['nullable', 'string', 'max:255', 'unique:tenants,domain,'.$tenant->id],
             'backend_domain' => ['nullable', 'string', 'max:255', 'unique:tenants,backend_domain,'.$tenant->id],
             'frontend_domain' => ['nullable', 'string', 'max:255', 'unique:tenants,frontend_domain,'.$tenant->id],
+            'owner_id' => ['sometimes', 'nullable', 'exists:users,id'],
             'status' => ['nullable', 'string', 'in:active,suspended,inactive'],
             'settings' => ['nullable', 'array'],
         ]);
 
         $tenant = $service->update($scopedTenant, $data);
 
-        return $this->success($tenant, 'Tenant updated.');
+        return $this->success($tenant->load('owner:id,name,email'), 'Tenant updated.');
     }
 
     public function destroy(Request $request, Tenant $tenant, SecurityService $security): JsonResponse

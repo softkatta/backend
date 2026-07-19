@@ -253,8 +253,19 @@ class ContentSeeder extends Seeder
                     'slug' => $tenantSlug,
                     'database_name' => 'softkatta_' . str_pad($user->id, 3, '0', STR_PAD_LEFT),
                     'status' => 'active',
+                    'frontend_domain' => 'app-'.$tenantSlug.'.local',
+                    'backend_domain' => 'api-'.$tenantSlug.'.local',
+                    'domain' => 'app-'.$tenantSlug.'.local',
                 ],
             );
+
+            if (! $tenant->hasDeployDomains()) {
+                $tenant->update([
+                    'frontend_domain' => 'app-'.$tenantSlug.'.local',
+                    'backend_domain' => 'api-'.$tenantSlug.'.local',
+                    'domain' => 'app-'.$tenantSlug.'.local',
+                ]);
+            }
 
             $user->update(['tenant_id' => $tenant->id]);
 
@@ -276,9 +287,13 @@ class ContentSeeder extends Seeder
                         ],
                     );
 
-                    // Auto-generate license key
-                    if (!$subscription->licenseKey) {
-                        $licenseService->generateForSubscription($subscription);
+                    // Auto-generate license key once SoftKatta Admin domains exist
+                    if (! $subscription->licenseKey) {
+                        try {
+                            $licenseService->generateForSubscription($subscription);
+                        } catch (\App\Exceptions\TenantDomainsRequiredException) {
+                            // Domains must be assigned before license generation.
+                        }
                     }
                 }
             }

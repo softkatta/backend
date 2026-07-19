@@ -30,6 +30,7 @@ class PurchaseService
         protected InvoiceProfileService $invoiceProfile,
         protected LicenseService $licenseService,
         protected CouponService $couponService,
+        protected SubscriptionRenewalService $renewalService,
     ) {}
 
     /**
@@ -387,35 +388,60 @@ class PurchaseService
 
                 if ($relatedOrder->invoice) {
                     $this->invoiceService->markAsPaid($relatedOrder->invoice);
+                    $relatedOrder->setRelation('invoice', $relatedOrder->invoice->fresh());
                 }
 
-                $subscription = Subscription::query()
-                    ->where('user_id', $relatedOrder->user_id)
-                    ->where('product_id', $relatedOrder->product_id)
-                    ->where('plan_id', $relatedOrder->plan_id)
-                    ->latest('id')
-                    ->first();
-
-                if ($subscription) {
-                    $subscription->update(['status' => SubscriptionStatus::Active]);
-                    $this->issueLicenseIfEligible($subscription);
-                }
+                $this->fulfillPaidOrder($relatedOrder);
             }
 
             return [
                 'payment' => $payment->fresh(),
                 'order' => $order->fresh(['invoice']),
                 'invoice' => $order->invoice?->fresh(),
-                'subscription' => Subscription::query()
-                    ->where('user_id', $order->user_id)
-                    ->where('product_id', $order->product_id)
-                    ->where('plan_id', $order->plan_id)
-                    ->latest('id')
-                    ->first()?->fresh(),
+                'subscription' => $this->resolveSubscriptionForOrder($order)?->fresh(),
                 'orders' => $ordersToComplete->map->fresh(['invoice'])->values()->all(),
                 'already_completed' => false,
             ];
         });
+    }
+
+    /**
+     * Activate first purchase or extend renewal — never extends without a paid invoice path.
+     */
+    public function fulfillPaidOrder(Order $order): ?Subscription
+    {
+        $order->loadMissing(['invoice', 'product', 'plan']);
+        $invoice = $order->invoice;
+        $subscription = $this->resolveSubscriptionForOrder($order);
+
+        if (! $subscription) {
+            return null;
+        }
+
+        if ($this->renewalService->isRenewalInvoice($invoice)) {
+            return $this->renewalService->applyPaidRenewal($subscription, $invoice);
+        }
+
+        $subscription->update(['status' => SubscriptionStatus::Active]);
+        $this->issueLicenseIfEligible($subscription);
+
+        return $subscription->fresh();
+    }
+
+    protected function resolveSubscriptionForOrder(Order $order): ?Subscription
+    {
+        $order->loadMissing('invoice');
+
+        if ($order->invoice?->subscription_id) {
+            return Subscription::query()->find($order->invoice->subscription_id);
+        }
+
+        return Subscription::query()
+            ->where('user_id', $order->user_id)
+            ->where('product_id', $order->product_id)
+            ->where('plan_id', $order->plan_id)
+            ->latest('id')
+            ->first();
     }
 
     /**
@@ -441,7 +467,15 @@ class PurchaseService
             return;
         }
 
-        $this->licenseService->generateForSubscription($subscription);
+        try {
+            $this->licenseService->generateForSubscription($subscription);
+        } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
+            \Illuminate\Support\Facades\Log::info('License deferred until SoftKatta Admin assigns tenant domains', [
+                'subscription_id' => $subscription->id,
+                'user_id' => $subscription->user_id,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function createSubscription(User $user, Product $product, Plan $plan, bool $requiresPayment): Subscription

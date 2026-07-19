@@ -17,7 +17,10 @@ class InvoiceService
         return app(InvoiceProfileService::class)->allocateInvoiceNumber();
     }
 
-    public function generateFromOrder(Order $order, ?Subscription $subscription = null): Invoice
+    /**
+     * @param  array{item_description?: string, billing_details?: array<string, mixed>, due_date?: string}  $options
+     */
+    public function generateFromOrder(Order $order, ?Subscription $subscription = null, array $options = []): Invoice
     {
         $order->load(['product', 'plan', 'user']);
         $user = $order->user;
@@ -27,6 +30,18 @@ class InvoiceService
         $cgst = $isInterState ? 0 : round((float) $order->tax_amount / 2, 2);
         $sgst = $isInterState ? 0 : round((float) $order->tax_amount / 2, 2);
         $igst = $isInterState ? (float) $order->tax_amount : 0;
+
+        $billingDetails = array_merge([
+            'name' => $user->name,
+            'company' => $user->company_name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'address' => $user->address,
+            'city' => $user->city,
+            'state' => $user->state,
+            'pincode' => $user->pincode,
+            'country' => $user->country,
+        ], $options['billing_details'] ?? []);
 
         $invoice = Invoice::create([
             'tenant_id' => $order->tenant_id,
@@ -41,28 +56,21 @@ class InvoiceService
             'igst' => $igst,
             'total_amount' => $order->total_amount,
             'status' => InvoiceStatus::Draft,
-            'due_date' => now()->addDays(7)->toDateString(),
+            'due_date' => $options['due_date'] ?? now()->addDays(7)->toDateString(),
             'gst_details' => [
                 'gst_number' => app(InvoiceProfileService::class)->company()['gst_number'],
                 'company' => app(InvoiceProfileService::class)->company()['name'],
                 'customer_gst' => $user->gst_number,
             ],
-            'billing_details' => [
-                'name' => $user->name,
-                'company' => $user->company_name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'address' => $user->address,
-                'city' => $user->city,
-                'state' => $user->state,
-                'pincode' => $user->pincode,
-                'country' => $user->country,
-            ],
+            'billing_details' => $billingDetails,
         ]);
+
+        $description = $options['item_description']
+            ?? "{$order->product->name} — {$plan->name} ({$plan->billing_cycle->label()})";
 
         InvoiceItem::create([
             'invoice_id' => $invoice->id,
-            'description' => "{$order->product->name} — {$plan->name} ({$plan->billing_cycle->label()})",
+            'description' => $description,
             'quantity' => 1,
             'unit_price' => $order->amount,
             'tax_rate' => app(InvoiceProfileService::class)->gstRate(),

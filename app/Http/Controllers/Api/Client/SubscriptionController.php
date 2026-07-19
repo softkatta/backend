@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers\Api\Client;
 
+use App\Enums\SubscriptionStatus;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Subscription;
+use App\Services\SubscriptionRenewalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SubscriptionController extends BaseApiController
 {
+    public function __construct(private readonly SubscriptionRenewalService $renewals) {}
+
     public function index(Request $request): JsonResponse
     {
         $subscriptions = Subscription::with(['product', 'plan'])
@@ -37,9 +41,11 @@ class SubscriptionController extends BaseApiController
         $subscription->update([
             'auto_renew' => false,
             'cancelled_at' => now(),
-            'status' => 'expiring_soon',
+            'status' => SubscriptionStatus::ExpiringSoon,
         ]);
 
-        return $this->success($subscription->fresh(), 'Subscription cancellation scheduled.');
+        $this->renewals->cancelOpenRenewalInvoices($subscription);
+
+        return $this->success($subscription->fresh(), 'Subscription cancellation scheduled. Access continues until expiry; no renewal charge will be created.');
     }
 }

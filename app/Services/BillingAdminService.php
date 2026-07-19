@@ -120,7 +120,11 @@ class BillingAdminService
         }
 
         if (in_array($subscription->status, [SubscriptionStatus::Active, SubscriptionStatus::Trial], true)) {
-            app(LicenseService::class)->generateForSubscription($subscription);
+            try {
+                app(LicenseService::class)->generateForSubscription($subscription);
+            } catch (\App\Exceptions\TenantDomainsRequiredException) {
+                // Domains must be assigned in SoftKatta Admin → Tenants first.
+            }
         }
     }
 

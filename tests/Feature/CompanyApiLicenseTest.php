@@ -47,6 +47,9 @@ class CompanyApiLicenseTest extends TestCase
             'slug' => 'test-tenant',
             'status' => 'active',
             'owner_id' => $user->id,
+            'frontend_domain' => 'study.local',
+            'backend_domain' => 'study.local',
+            'domain' => 'study.local',
         ]);
         $user->update(['tenant_id' => $tenant->id]);
 
@@ -86,9 +89,9 @@ class CompanyApiLicenseTest extends TestCase
             'product_id' => $product->id,
             'user_id' => $user->id,
             'license_key' => 'SK-TEST-AAAAA-BBBBB',
-            'allowed_domains' => [],
+            'allowed_domains' => ['study.local'],
             'max_devices' => 2,
-            'max_domains' => 1,
+            'max_domains' => 2,
             'status' => LicenseStatus::Active,
             'is_product_active' => true,
             'activated_at' => now(),

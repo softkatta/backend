@@ -3,18 +3,20 @@
 namespace App\Http\Controllers\Api\Webhook;
 
 use App\Enums\PaymentStatus;
-use App\Enums\SubscriptionStatus;
 use App\Http\Controllers\Api\BaseApiController;
-use App\Models\Order;
 use App\Models\Payment;
-use App\Services\LicenseService;
+use App\Services\InvoiceService;
+use App\Services\PurchaseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class PaymentWebhookController extends BaseApiController
 {
-    public function __construct(private readonly LicenseService $licenseService) {}
+    public function __construct(
+        private readonly PurchaseService $purchaseService,
+        private readonly InvoiceService $invoiceService,
+    ) {}
 
     /**
      * POST /api/v1/webhooks/razorpay
@@ -24,9 +26,9 @@ class PaymentWebhookController extends BaseApiController
      */
     public function razorpay(Request $request): JsonResponse
     {
-        $secret    = config('services.razorpay.webhook_secret');
+        $secret = config('services.razorpay.webhook_secret');
         $signature = $request->header('X-Razorpay-Signature', '');
-        $payload   = $request->getContent();
+        $payload = $request->getContent();
 
         if (! $this->verifyRazorpaySignature($payload, $signature, $secret)) {
             Log::warning('Razorpay webhook signature mismatch', [
@@ -37,26 +39,22 @@ class PaymentWebhookController extends BaseApiController
         }
 
         $event = $request->input('event');
-        $data  = $request->input('payload', []);
+        $data = $request->input('payload', []);
 
         match ($event) {
-            'payment.captured'    => $this->handlePaymentCaptured($data),
-            'payment.failed'      => $this->handlePaymentFailed($data),
+            'payment.captured' => $this->handlePaymentCaptured($data),
+            'payment.failed' => $this->handlePaymentFailed($data),
             'subscription.charged' => $this->handleSubscriptionCharged($data),
-            default               => Log::info("Razorpay webhook: unhandled event [{$event}]"),
+            default => Log::info("Razorpay webhook: unhandled event [{$event}]"),
         };
 
         return response()->json(['status' => 'ok']);
     }
 
-    // ------------------------------------------------------------------
-    // Event handlers
-    // ------------------------------------------------------------------
-
     private function handlePaymentCaptured(array $data): void
     {
         $paymentEntity = $data['payment']['entity'] ?? [];
-        $razorpayId    = $paymentEntity['id'] ?? null;
+        $razorpayId = $paymentEntity['id'] ?? null;
 
         if (! $razorpayId) {
             return;
@@ -71,11 +69,11 @@ class PaymentWebhookController extends BaseApiController
         }
 
         if ($payment->status === PaymentStatus::Completed) {
-            return; // already processed
+            return;
         }
 
         $payment->update([
-            'status'           => PaymentStatus::Completed,
+            'status' => PaymentStatus::Completed,
             'gateway_response' => $paymentEntity,
         ]);
 
@@ -85,25 +83,24 @@ class PaymentWebhookController extends BaseApiController
             return;
         }
 
-        $order->update(['status' => 'completed']);
+        $order->update([
+            'status' => 'completed',
+            'payment_id' => $razorpayId,
+        ]);
 
-        // Activate subscription & generate license
-        $subscription = $order->subscription ?? $order->user?->subscriptions()
-            ->where('product_id', $order->product_id)
-            ->where('plan_id', $order->plan_id)
-            ->latest()
-            ->first();
-
-        if ($subscription) {
-            $subscription->update(['status' => SubscriptionStatus::Active]);
-            $this->licenseService->generateForSubscription($subscription);
+        if ($order->invoice) {
+            $this->invoiceService->markAsPaid($order->invoice);
+            $order->setRelation('invoice', $order->invoice->fresh());
         }
+
+        // First purchase activation OR renewal extension — only after payment.
+        $this->purchaseService->fulfillPaidOrder($order->fresh(['invoice']));
     }
 
     private function handlePaymentFailed(array $data): void
     {
         $paymentEntity = $data['payment']['entity'] ?? [];
-        $razorpayId    = $paymentEntity['id'] ?? null;
+        $razorpayId = $paymentEntity['id'] ?? null;
 
         if (! $razorpayId) {
             return;
@@ -111,35 +108,28 @@ class PaymentWebhookController extends BaseApiController
 
         Payment::where('transaction_id', $razorpayId)
             ->update([
-                'status'           => PaymentStatus::Failed,
+                'status' => PaymentStatus::Failed,
                 'gateway_response' => $paymentEntity,
             ]);
     }
 
     private function handleSubscriptionCharged(array $data): void
     {
-        // Razorpay recurring subscription charged — mark payment complete
-        $subscriptionEntity = $data['subscription']['entity'] ?? [];
-        $paymentEntity      = $data['payment']['entity'] ?? [];
-        $razorpayId         = $paymentEntity['id'] ?? null;
+        // SoftKatta does not auto-extend on Razorpay subscription.charged alone.
+        // Renewal requires SoftKatta renewal invoice + verified payment capture.
+        $paymentEntity = $data['payment']['entity'] ?? [];
+        $razorpayId = $paymentEntity['id'] ?? null;
 
         if ($razorpayId) {
-            Payment::where('transaction_id', $razorpayId)
-                ->update([
-                    'status'           => PaymentStatus::Completed,
-                    'gateway_response' => $paymentEntity,
-                ]);
+            Log::info('Razorpay subscription.charged ignored for auto-extend; awaiting SoftKatta paid renewal invoice', [
+                'razorpay_payment_id' => $razorpayId,
+            ]);
         }
     }
-
-    // ------------------------------------------------------------------
-    // Signature verification
-    // ------------------------------------------------------------------
 
     private function verifyRazorpaySignature(string $payload, string $signature, ?string $secret): bool
     {
         if (empty($secret)) {
-            // In local/test environment without a secret configured, skip verification
             return app()->isLocal() || app()->runningUnitTests();
         }
 

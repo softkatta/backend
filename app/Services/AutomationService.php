@@ -18,6 +18,7 @@ class AutomationService
     public function __construct(
         private readonly PaymentService $payments,
         private readonly NotificationService $notifications,
+        private readonly SubscriptionRenewalService $renewals,
     ) {}
 
     /**
@@ -28,6 +29,7 @@ class AutomationService
     public function runAll(): array
     {
         $summary = [
+            'subscription_renewal_invoices' => $this->createSubscriptionRenewalInvoices(),
             'subscriptions_expiring_soon' => $this->markSubscriptionsExpiringSoon(),
             'subscriptions_expired' => $this->expireSubscriptions(),
             'licenses_expired' => $this->expireLicenses(),
@@ -41,6 +43,15 @@ class AutomationService
         Log::info('SoftKatta automation completed', $summary);
 
         return $summary;
+    }
+
+    /**
+     * Auto-renew = Yes only creates a payment-due invoice/notification.
+     * Period is never extended here — only after successful payment.
+     */
+    public function createSubscriptionRenewalInvoices(int $withinDays = 7): int
+    {
+        return $this->renewals->createPendingRenewals($withinDays);
     }
 
     private int $notificationsSent = 0;
@@ -65,21 +76,34 @@ class AutomationService
                 $plan = $subscription->plan?->name ?? 'plan';
                 $ends = $subscription->ends_at?->timezone(config('app.timezone'))->format('d M Y') ?? 'soon';
 
+                $autoRenew = (bool) $subscription->auto_renew && ! $subscription->cancelled_at;
+                $title = $autoRenew
+                    ? 'Payment required to renew SoftKatta subscription'
+                    : 'Your SoftKatta subscription is expiring soon';
+                $message = $autoRenew
+                    ? "Hi {$this->firstName($subscription->user)}, auto-renew is on for {$product} ({$plan}), but it renews only after payment. Complete payment before {$ends} — without payment the subscription will expire."
+                    : "Hi {$this->firstName($subscription->user)}, your subscription to {$product} ({$plan}) expires on {$ends}. Renew now to keep uninterrupted access.";
+                $action = $autoRenew
+                    ? 'Pay the renewal invoice from your SoftKatta dashboard. Auto-renew does not extend access without payment.'
+                    : 'Please renew from your SoftKatta dashboard.';
+
                 $this->notifyCustomer(
                     $subscription->user,
                     'subscription_expiring',
-                    'Your SoftKatta subscription is expiring soon',
-                    "Hi {$this->firstName($subscription->user)}, your subscription to {$product} ({$plan}) expires on {$ends}. Renew now to keep uninterrupted access.",
+                    $title,
+                    $message,
                     [
                         'subscription_id' => $subscription->id,
                         'product_id' => $subscription->product_id,
                         'plan_id' => $subscription->plan_id,
+                        'auto_renew' => $autoRenew,
                     ],
                     [
                         'Product' => $product,
                         'Plan' => $plan,
                         'Expires on' => $ends,
-                        'Action' => 'Please renew from your SoftKatta dashboard.',
+                        'Auto renew' => $autoRenew ? 'Yes (payment required)' : 'No',
+                        'Action' => $action,
                     ],
                 );
             });
@@ -114,21 +138,27 @@ class AutomationService
                 $plan = $subscription->plan?->name ?? 'plan';
                 $ended = $subscription->ends_at?->timezone(config('app.timezone'))->format('d M Y') ?? 'today';
 
+                $autoRenew = (bool) $subscription->auto_renew;
+                $message = $autoRenew
+                    ? "Hi {$this->firstName($subscription->user)}, your subscription to {$product} ({$plan}) expired on {$ended} because payment was not completed. Auto-renew was on, but renewal requires successful payment. Pay the open invoice or purchase again to restore access."
+                    : "Hi {$this->firstName($subscription->user)}, your subscription to {$product} ({$plan}) expired on {$ended}. Renew to restore access to your product.";
+
                 $this->notifyCustomer(
                     $subscription->user,
                     'subscription_expired',
                     'Your SoftKatta subscription has expired',
-                    "Hi {$this->firstName($subscription->user)}, your subscription to {$product} ({$plan}) expired on {$ended}. Renew to restore access to your product.",
+                    $message,
                     [
                         'subscription_id' => $subscription->id,
                         'product_id' => $subscription->product_id,
                         'plan_id' => $subscription->plan_id,
+                        'auto_renew' => $autoRenew,
                     ],
                     [
                         'Product' => $product,
                         'Plan' => $plan,
                         'Expired on' => $ended,
-                        'Action' => 'Renew from your SoftKatta dashboard to restore access.',
+                        'Action' => 'Complete payment or renew from your SoftKatta dashboard to restore access.',
                     ],
                 );
             });

@@ -84,7 +84,11 @@ class LicenseController extends BaseApiController
             return $this->error('A license already exists for this subscription. Use update to modify it.', 409);
         }
 
-        $license = $this->licenseService->generateForSubscription($subscription);
+        try {
+            $license = $this->licenseService->generateForSubscription($subscription);
+        } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
 
         if (isset($validated['allowed_domains'])) {
             $license->update(['allowed_domains' => $validated['allowed_domains']]);

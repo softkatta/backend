@@ -8,6 +8,7 @@ use App\Models\LicenseApiLog;
 use App\Models\LicenseInstallation;
 use App\Models\LicenseKey;
 use App\Models\ProductIntegration;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -57,7 +58,21 @@ class CompanyLicenseService
             return $this->error('SERVER_VERIFICATION_FAILED', 'Server fingerprint is required.', 403);
         }
 
-        // Permanent domain binding: if license already has a different domain, reject.
+        $tenantGate = $this->assertTenantDomainAuthorization($license, $domain);
+        if ($tenantGate !== null) {
+            $this->log($integration, $request, $license, '/company/activate', false, $tenantGate['error_code'], $tenantGate['http_status'], $domain, $fingerprint);
+
+            return $tenantGate;
+        }
+
+        // SoftKatta Admin domains are the source of truth — sync onto the license.
+        $tenant = $this->resolveTenantForLicense($license);
+        if ($tenant) {
+            $this->licenseService->syncAllowedDomainsFromTenant($license, $tenant);
+            $license->refresh();
+        }
+
+        // Permanent domain binding: if license already has a different domain set, request must match.
         $registered = collect($license->allowed_domains ?? [])
             ->map(fn ($d) => LicenseKey::normalizeDomain($d))
             ->filter()
@@ -66,7 +81,11 @@ class CompanyLicenseService
         if ($registered->isNotEmpty() && ! $registered->contains($domain)) {
             $this->log($integration, $request, $license, '/company/activate', false, 'DOMAIN_NOT_AUTHORIZED', 403, $domain, $fingerprint);
 
-            return $this->error('DOMAIN_NOT_AUTHORIZED', 'This license is bound to another domain.', 403);
+            return $this->error(
+                'DOMAIN_NOT_AUTHORIZED',
+                'Detected domain ['.$domain.'] does not match SoftKatta Admin domains ['.$registered->implode(', ').'].',
+                403,
+            );
         }
 
         try {
@@ -469,6 +488,11 @@ class CompanyLicenseService
             return $this->failResolve('DOMAIN_NOT_AUTHORIZED', 'Domain does not match this installation.', 403, $license, $installation);
         }
 
+        $tenantGate = $this->assertTenantDomainAuthorization($license, $domain);
+        if ($tenantGate !== null) {
+            return $this->failResolve($tenantGate['error_code'], $tenantGate['message'], $tenantGate['http_status'], $license, $installation);
+        }
+
         if (! $license->isDomainAllowed($domain)) {
             return $this->failResolve('DOMAIN_NOT_AUTHORIZED', 'This license is not valid for this domain.', 403, $license, $installation);
         }
@@ -673,6 +697,60 @@ class CompanyLicenseService
         }
 
         return $payload;
+    }
+
+    /**
+     * SoftKatta Admin → Tenants domains are required and must match the install host.
+     *
+     * @return array{success: false, error_code: string, message: string, http_status: int}|null
+     */
+    protected function assertTenantDomainAuthorization(LicenseKey $license, string $domain): ?array
+    {
+        $tenant = $this->resolveTenantForLicense($license);
+
+        if (! $tenant || ! $tenant->hasDeployDomains()) {
+            return $this->error(
+                'TENANT_DOMAINS_REQUIRED',
+                'Assign frontend and backend domains for this customer in SoftKatta Admin → Tenants before project setup. License activation is blocked until domains are assigned.',
+                403,
+            );
+        }
+
+        if (! $tenant->allowsDeployDomain($domain)) {
+            $assigned = implode(', ', $tenant->deployDomains());
+
+            return $this->error(
+                'DOMAIN_NOT_AUTHORIZED',
+                "Detected domain [{$domain}] does not match SoftKatta Admin domains [{$assigned}]. Project setup is only allowed on the assigned domains.",
+                403,
+            );
+        }
+
+        return null;
+    }
+
+    protected function resolveTenantForLicense(LicenseKey $license): ?Tenant
+    {
+        $license->loadMissing(['subscription.tenant', 'user']);
+
+        $subscription = $license->subscription;
+        if ($subscription) {
+            $tenant = $this->licenseService->resolveTenantForSubscription($subscription);
+            if ($tenant) {
+                return $tenant;
+            }
+        }
+
+        $user = $license->user;
+        if ($user?->tenant_id) {
+            return Tenant::query()->find($user->tenant_id);
+        }
+
+        if ($user) {
+            return Tenant::query()->where('owner_id', $user->id)->latest('created_at')->first();
+        }
+
+        return null;
     }
 
     protected function isLocalDevDomain(string $domain): bool

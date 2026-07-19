@@ -20,6 +20,7 @@ class SoftkattaAutomate extends Command
         $summary = match ($task) {
             'all' => $automation->runAll(),
             'subscriptions' => [
+                'subscription_renewal_invoices' => $automation->createSubscriptionRenewalInvoices(),
                 'subscriptions_expiring_soon' => $automation->markSubscriptionsExpiringSoon(),
                 'subscriptions_expired' => $automation->expireSubscriptions(),
             ],
