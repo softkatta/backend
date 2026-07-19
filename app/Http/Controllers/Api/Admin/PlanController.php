@@ -11,9 +11,17 @@ use Illuminate\Support\Str;
 
 class PlanController extends BaseApiController
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return $this->success(Plan::with('product')->orderBy('sort_order')->paginate(20));
+        $query = Plan::with('product')->orderBy('sort_order');
+
+        if ($request->filled('product_id')) {
+            $query->where('product_id', $request->integer('product_id'));
+        }
+
+        $perPage = min(200, max(1, $request->integer('per_page', 100)));
+
+        return $this->success($query->paginate($perPage));
     }
 
     public function store(StorePlanRequest $request): JsonResponse
