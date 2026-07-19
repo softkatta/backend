@@ -50,6 +50,15 @@ class CompanyApiAuthService
             ->first();
 
         if (! $integration) {
+            $canonicalSlug = $this->canonicalProductSlug($productSlug);
+            if ($canonicalSlug !== $productSlug) {
+                $integration = ProductIntegration::query()
+                    ->where('slug', $canonicalSlug)
+                    ->first();
+            }
+        }
+
+        if (! $integration) {
             return $this->fail('INVALID_API_KEY', 'Product integration not found.', 404);
         }
 
@@ -149,5 +158,20 @@ class CompanyApiAuthService
         }
 
         return '';
+    }
+
+    /**
+     * Map short/legacy installer aliases to SoftKatta Product Integration slugs.
+     */
+    private function canonicalProductSlug(string $productSlug): string
+    {
+        return match ($productSlug) {
+            'study-point', 'study-point-erp' => 'study-point-management-software',
+            'kindergarten', 'nursery-school', 'nursery-school-erp' => 'nursery-school-management-software',
+            'coaching-erp' => 'coaching',
+            'library-management-system' => 'library',
+            'gym-management-system' => 'gym',
+            default => $productSlug,
+        };
     }
 }
