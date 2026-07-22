@@ -241,7 +241,7 @@ class ProductLicenseValidationService
         }
 
         if ($license->status === LicenseStatus::Suspended) {
-            return $this->fail('LICENSE_SUSPENDED', 'License is suspended.', 403);
+            return $this->fail('SUSPENDED_LICENSE', 'License is suspended.', 403);
         }
 
         if ($license->status !== LicenseStatus::Active) {
