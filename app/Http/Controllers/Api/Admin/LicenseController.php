@@ -117,13 +117,28 @@ class LicenseController extends BaseApiController
             'allowed_domains.*' => ['string', 'max:255'],
             'max_devices'       => ['nullable', 'integer', 'min:1', 'max:100'],
             'expires_at'        => ['nullable', 'date'],
+            'extra_max_users'   => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'extra_max_students'=> ['nullable', 'integer', 'min:0', 'max:1000000'],
         ]);
 
-        $license->update(array_filter($validated, fn ($v) => $v !== null));
+        $meta = is_array($license->meta) ? $license->meta : [];
+        if (array_key_exists('extra_max_users', $validated)) {
+            $meta['extra_max_users'] = (int) $validated['extra_max_users'];
+            unset($validated['extra_max_users']);
+        }
+        if (array_key_exists('extra_max_students', $validated)) {
+            $meta['extra_max_students'] = (int) $validated['extra_max_students'];
+            unset($validated['extra_max_students']);
+        }
+
+        $payload = array_filter($validated, fn ($v) => $v !== null);
+        $payload['meta'] = $meta;
+
+        $license->update($payload);
 
         return $this->success(
-            $this->licenseService->enrichForApi($license->fresh(['product', 'user', 'subscription'])),
-            'License updated.'
+            $this->licenseService->enrichForApi($license->fresh(['product', 'user', 'subscription.plan'])),
+            'License updated. Product picks up new limits on the next license check.'
         );
     }
 

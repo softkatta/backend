@@ -40,6 +40,7 @@ class ProductPlanSeedService
                 'sort_order' => 1,
                 'limits' => [
                     'max_branches' => 1,
+                    'max_users' => 20,
                     'max_staff' => 20,
                     'max_students' => 500,
                     'max_storage' => 10,
@@ -60,6 +61,7 @@ class ProductPlanSeedService
                 'sort_order' => 2,
                 'limits' => [
                     'max_branches' => 3,
+                    'max_users' => 100,
                     'max_staff' => 100,
                     'max_students' => 2000,
                     'max_storage' => 50,
@@ -80,6 +82,7 @@ class ProductPlanSeedService
                 'sort_order' => 3,
                 'limits' => [
                     'max_branches' => 10,
+                    'max_users' => 500,
                     'max_staff' => 500,
                     'max_students' => 10000,
                     'max_storage' => 500,
@@ -140,6 +143,7 @@ class ProductPlanSeedService
                 'sort_order' => 1,
                 'limits' => [
                     'max_branches' => 1,
+                    'max_users' => 5,
                     'max_staff' => 5,
                     'max_storage' => 10,
                     'enabled_modules' => ['billing', 'inventory', 'gst'],
@@ -159,6 +163,7 @@ class ProductPlanSeedService
                 'sort_order' => 2,
                 'limits' => [
                     'max_branches' => 3,
+                    'max_users' => 20,
                     'max_staff' => 20,
                     'max_storage' => 50,
                     'enabled_modules' => ['billing', 'inventory', 'gst', 'purchase', 'reports'],
@@ -205,6 +210,7 @@ class ProductPlanSeedService
                 'sort_order' => 1,
                 'limits' => [
                     'max_branches' => 1,
+                    'max_users' => 10,
                     'max_staff' => 10,
                     'max_students' => 200,
                     'max_storage' => 5,
@@ -225,6 +231,7 @@ class ProductPlanSeedService
                 'sort_order' => 2,
                 'limits' => [
                     'max_branches' => 2,
+                    'max_users' => 25,
                     'max_staff' => 25,
                     'max_students' => 500,
                     'max_storage' => 20,

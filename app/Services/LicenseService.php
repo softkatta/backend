@@ -84,6 +84,21 @@ class LicenseService
         $data['installation_env'] = $this->buildInstallationEnv($license);
         $data['installation_env_text'] = $this->formatInstallationEnv($license);
 
+        $planLimits = $license->subscription?->plan?->limits ?? [];
+        $payload = $this->buildLimitsPayload($license, is_array($planLimits) ? $planLimits : []);
+        $meta = is_array($license->meta) ? $license->meta : [];
+        $data['plan_limits'] = [
+            'max_users' => (int) ($planLimits['max_users'] ?? $planLimits['max_staff'] ?? 10),
+            'max_students' => (int) ($planLimits['max_students'] ?? 500),
+        ];
+        $data['extra_max_users'] = max(0, (int) ($meta['extra_max_users'] ?? 0));
+        $data['extra_max_students'] = max(0, (int) ($meta['extra_max_students'] ?? 0));
+        $data['effective_limits'] = [
+            'max_users' => $payload['max_users'],
+            'max_students' => $payload['max_students'],
+            'max_branches' => $payload['max_branches'],
+        ];
+
         return $data;
     }
 
@@ -488,13 +503,28 @@ class LicenseService
      */
     private function buildLimitsPayload(LicenseKey $license, array $limits): array
     {
+        $meta = is_array($license->meta) ? $license->meta : [];
+        $extraUsers = max(0, (int) ($meta['extra_max_users'] ?? 0));
+        $extraStudents = max(0, (int) ($meta['extra_max_students'] ?? 0));
+
+        $planUsers = (int) ($limits['max_users'] ?? $limits['max_staff'] ?? 10);
+        $planStudents = (int) ($limits['max_students'] ?? 500);
+        $maxUsers = max(0, $planUsers + $extraUsers);
+        $maxStudents = max(0, $planStudents + $extraStudents);
+
         return [
-            'max_branches' => $limits['max_branches'] ?? 1,
-            'max_staff' => $limits['max_staff'] ?? 10,
-            'max_students' => $limits['max_students'] ?? 500,
-            'max_storage_gb' => $limits['max_storage'] ?? 5,
+            'max_branches' => (int) ($limits['max_branches'] ?? 1),
+            // Products enforce max_users; keep max_staff as an alias for older caches.
+            'max_users' => $maxUsers,
+            'max_staff' => $maxUsers,
+            'max_students' => $maxStudents,
+            'max_storage_gb' => (int) ($limits['max_storage'] ?? $limits['max_storage_gb'] ?? 5),
             'max_devices' => $license->max_devices,
             'max_domains' => $license->max_domains,
+            'plan_max_users' => $planUsers,
+            'plan_max_students' => $planStudents,
+            'extra_max_users' => $extraUsers,
+            'extra_max_students' => $extraStudents,
             'api_access' => $limits['api_access'] ?? false,
             'whatsapp_integration' => $limits['whatsapp_integration'] ?? false,
             'sms_integration' => $limits['sms_integration'] ?? false,
@@ -742,22 +772,7 @@ class LicenseService
                 'billing_cycle' => $plan?->billing_cycle?->value,
                 'is_trial'      => $license->subscription?->status === SubscriptionStatus::Trial,
             ],
-            'limits'          => [
-                'max_branches'            => $limits['max_branches'] ?? 1,
-                'max_staff'               => $limits['max_staff'] ?? 10,
-                'max_students'            => $limits['max_students'] ?? 500,
-                'max_storage_gb'          => $limits['max_storage'] ?? 5,
-                'max_devices'             => $license->max_devices,
-                'api_access'              => $limits['api_access'] ?? false,
-                'whatsapp_integration'    => $limits['whatsapp_integration'] ?? false,
-                'sms_integration'         => $limits['sms_integration'] ?? false,
-                'email_integration'       => $limits['email_integration'] ?? true,
-                'biometric_integration'   => $limits['biometric_integration'] ?? false,
-                'custom_domain'           => $limits['custom_domain'] ?? false,
-                'white_label'             => $limits['white_label'] ?? false,
-                'backup'                  => $limits['backup'] ?? true,
-                'addon_support'           => $limits['addon_support'] ?? false,
-            ],
+            'limits'          => $this->buildLimitsPayload($license, $limits),
             'enabled_modules' => $modules,
             'customer'        => [
                 'id'    => $user?->id,
