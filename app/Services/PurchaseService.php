@@ -31,6 +31,7 @@ class PurchaseService
         protected LicenseService $licenseService,
         protected CouponService $couponService,
         protected SubscriptionRenewalService $renewalService,
+        protected ExtraSeatsPurchaseService $extraSeatsPurchaseService,
     ) {}
 
     /**
@@ -420,6 +421,18 @@ class PurchaseService
 
         if ($this->renewalService->isRenewalInvoice($invoice)) {
             return $this->renewalService->applyPaidRenewal($subscription, $invoice);
+        }
+
+        if ($this->extraSeatsPurchaseService->isExtraSeatsInvoice($invoice)) {
+            $licenseId = (int) (($invoice->billing_details ?? [])['license_id'] ?? 0);
+            $license = $licenseId > 0
+                ? \App\Models\LicenseKey::query()->find($licenseId)
+                : $subscription->licenseKey;
+            if ($license) {
+                $this->extraSeatsPurchaseService->applyPaidExtraSeats($license, $invoice);
+            }
+
+            return $subscription->fresh();
         }
 
         $subscription->update(['status' => SubscriptionStatus::Active]);

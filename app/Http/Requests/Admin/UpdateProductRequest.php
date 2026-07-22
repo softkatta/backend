@@ -33,6 +33,8 @@ class UpdateProductRequest extends FormRequest
             'trial_days' => ['integer', 'min:0'],
             'sort_order' => ['integer', 'min:0'],
             'meta' => ['nullable', 'array'],
+            'meta.price_per_extra_user' => ['nullable', 'numeric', 'min:0'],
+            'meta.price_per_extra_student' => ['nullable', 'numeric', 'min:0'],
             'features' => ['nullable', 'array'],
             'features.*.title' => ['required', 'string', 'max:255'],
             'features.*.description' => ['nullable', 'string'],

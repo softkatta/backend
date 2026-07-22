@@ -99,6 +99,12 @@ class LicenseService
             'max_branches' => $payload['max_branches'],
         ];
 
+        $productMeta = is_array($license->product?->meta) ? $license->product->meta : [];
+        $data['seat_pricing'] = [
+            'price_per_extra_user' => (float) ($productMeta['price_per_extra_user'] ?? 0),
+            'price_per_extra_student' => (float) ($productMeta['price_per_extra_student'] ?? 0),
+        ];
+
         return $data;
     }
 

@@ -586,6 +586,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('licenses/{license}/history', [ClientLicenseController::class, 'history']);
         Route::get('licenses/{license}/installations', [ClientLicenseController::class, 'installations']);
         Route::post('licenses/{license}/installations/{installation}/deactivate', [ClientLicenseController::class, 'deactivateInstallation']);
+        Route::post('licenses/{license}/extra-seats', [ClientLicenseController::class, 'purchaseExtraSeats']);
     });
 
     // ---------------------------------------------------------------

@@ -49,6 +49,9 @@ class ProductController extends BaseApiController
         if (isset($data['name']) && ! isset($data['slug'])) {
             $data['slug'] = Str::slug($data['name']);
         }
+        if (isset($data['meta']) && is_array($data['meta'])) {
+            $data['meta'] = array_merge(is_array($product->meta) ? $product->meta : [], $data['meta']);
+        }
 
         $product->update($data);
         if ($features !== null) {

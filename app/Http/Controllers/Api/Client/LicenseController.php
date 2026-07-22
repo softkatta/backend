@@ -9,15 +9,18 @@ use App\Models\LicenseHistory;
 use App\Models\LicenseInstallation;
 use App\Models\LicenseKey;
 use App\Services\CompanyLicenseService;
+use App\Services\ExtraSeatsPurchaseService;
 use App\Services\LicenseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 
 class LicenseController extends BaseApiController
 {
     public function __construct(
         private readonly LicenseService $licenseService,
         private readonly CompanyLicenseService $companyLicenseService,
+        private readonly ExtraSeatsPurchaseService $extraSeatsPurchaseService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -208,6 +211,35 @@ class LicenseController extends BaseApiController
             'installation_id' => $updated->installation_id,
             'revoked_at' => $updated->revoked_at?->toIso8601String(),
         ], 'Installation deactivated.');
+    }
+
+    public function purchaseExtraSeats(Request $request, LicenseKey $license): JsonResponse
+    {
+        if ($response = $this->authorizeLicense($request, $license)) {
+            return $response;
+        }
+
+        $validated = $request->validate([
+            'extra_users' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'extra_students' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'payment_gateway' => ['nullable', 'string', 'in:razorpay'],
+        ]);
+
+        try {
+            $result = $this->extraSeatsPurchaseService->purchase(
+                $request->user(),
+                $license,
+                (int) ($validated['extra_users'] ?? 0),
+                (int) ($validated['extra_students'] ?? 0),
+                $validated['payment_gateway'] ?? 'razorpay',
+            );
+        } catch (InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
+
+        return $this->success($result, 'Checkout initiated. Complete payment to add seats.', 201);
     }
 
     private function authorizeLicense(Request $request, LicenseKey $license): ?JsonResponse
