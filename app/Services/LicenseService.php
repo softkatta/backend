@@ -512,7 +512,8 @@ class LicenseService
         $license->update([
             'status'           => LicenseStatus::Suspended,
             'suspended_at'     => now(),
-            'force_logout_at'  => now(),
+            // Do not set force_logout_at — that maps to INVALID_INSTALL_TOKEN and breaks
+            // Admin Activate auto-recovery. Keep install tokens; verify returns SUSPENDED_LICENSE.
             'is_product_active'=> false,
             'deactivated_at'   => now(),
         ]);

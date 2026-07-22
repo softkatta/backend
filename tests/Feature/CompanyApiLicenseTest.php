@@ -254,7 +254,7 @@ class CompanyApiLicenseTest extends TestCase
             ->assertJsonPath('error_code', 'INVALID_INSTALL_TOKEN');
     }
 
-    public function test_suspend_revokes_installations_and_blocks_verify(): void
+    public function test_suspend_keeps_installations_and_blocks_verify_with_suspended(): void
     {
         $activate = $this->signedJson('POST', '/api/v1/company/activate', [
             'license_key' => $this->license->license_key,
@@ -272,7 +272,7 @@ class CompanyApiLicenseTest extends TestCase
         $this->assertTrue(
             LicenseInstallation::query()
                 ->where('installation_id', $installationId)
-                ->whereNotNull('revoked_at')
+                ->whereNull('revoked_at')
                 ->exists()
         );
 
@@ -282,8 +282,8 @@ class CompanyApiLicenseTest extends TestCase
             'fingerprint' => hash('sha256', 'server-suspend'),
             'install_token' => $installToken,
         ])
-            ->assertStatus(401)
-            ->assertJsonPath('error_code', 'INVALID_INSTALL_TOKEN');
+            ->assertStatus(403)
+            ->assertJsonPath('error_code', 'SUSPENDED_LICENSE');
 
         $this->signedJson('POST', '/api/v1/company/activate', [
             'license_key' => $this->license->license_key,
@@ -294,6 +294,31 @@ class CompanyApiLicenseTest extends TestCase
         ])
             ->assertStatus(403)
             ->assertJsonPath('error_code', 'SUSPENDED_LICENSE');
+    }
+
+    public function test_activate_after_suspend_allows_same_token_verify(): void
+    {
+        $activate = $this->signedJson('POST', '/api/v1/company/activate', [
+            'license_key' => $this->license->license_key,
+        ], [
+            'domain' => 'study.local',
+            'installation_id' => '',
+            'fingerprint' => hash('sha256', 'server-reactivate'),
+        ])->assertOk();
+
+        $installationId = $activate->json('data.installation_id');
+        $installToken = $activate->json('data.install_token');
+
+        $licenses = app(\App\Services\LicenseService::class);
+        $licenses->suspend($this->license->fresh());
+        $licenses->activate($this->license->fresh());
+
+        $this->signedJson('POST', '/api/v1/company/verify', [], [
+            'domain' => 'study.local',
+            'installation_id' => $installationId,
+            'fingerprint' => hash('sha256', 'server-reactivate'),
+            'install_token' => $installToken,
+        ])->assertOk();
     }
 
     /**
