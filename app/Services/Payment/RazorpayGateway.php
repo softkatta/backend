@@ -20,7 +20,7 @@ class RazorpayGateway extends AbstractPaymentGateway
         $creds = app(IntegrationCredentialService::class)->razorpay();
 
         if (! $creds) {
-            return $this->stubResponse($order, 'initiate', $payload);
+            throw new RuntimeException('Razorpay is not configured. SoftKatta Admin → Settings → Integrations → Razorpay.');
         }
 
         $amount = (float) ($payload['amount'] ?? $order->total_amount);
@@ -74,7 +74,11 @@ class RazorpayGateway extends AbstractPaymentGateway
         $creds = app(IntegrationCredentialService::class)->razorpay();
 
         if (! $creds) {
-            return $paymentId !== '';
+            return false;
+        }
+
+        if ($signature === 'stub' || str_starts_with($paymentId, 'pay_stub_') || str_starts_with($orderId, 'order_stub_')) {
+            return false;
         }
 
         $expected = hash_hmac('sha256', $orderId.'|'.$paymentId, $creds['key_secret']);
@@ -84,10 +88,11 @@ class RazorpayGateway extends AbstractPaymentGateway
 
     public function refund(Payment $payment, array $payload = []): array
     {
-        return [
-            'gateway' => $this->getName(),
-            'refund_id' => 'rfnd_'.uniqid(),
-            'status' => 'processed',
-        ];
+        $creds = app(IntegrationCredentialService::class)->razorpay();
+        if (! $creds) {
+            throw new RuntimeException('Razorpay is not configured — cannot refund.');
+        }
+
+        throw new RuntimeException('Razorpay refund API is not wired yet. Process refunds in the Razorpay dashboard.');
     }
 }

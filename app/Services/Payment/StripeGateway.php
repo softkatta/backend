@@ -4,6 +4,7 @@ namespace App\Services\Payment;
 
 use App\Models\Order;
 use App\Models\Payment;
+use RuntimeException;
 
 class StripeGateway extends AbstractPaymentGateway
 {
@@ -14,22 +15,16 @@ class StripeGateway extends AbstractPaymentGateway
 
     public function initiatePayment(Order $order, array $payload = []): array
     {
-        return array_merge($this->stubResponse($order, 'initiate'), [
-            'client_secret' => 'pi_'.uniqid().'_secret_'.uniqid(),
-        ]);
+        throw new RuntimeException('Stripe is not configured. SoftKatta Admin → Settings → Integrations.');
     }
 
     public function verifyPayment(Payment $payment, array $payload = []): bool
     {
-        return ($payload['status'] ?? null) === 'succeeded';
+        return false;
     }
 
     public function refund(Payment $payment, array $payload = []): array
     {
-        return [
-            'gateway' => $this->getName(),
-            'refund_id' => 're_'.uniqid(),
-            'status' => 'succeeded',
-        ];
+        throw new RuntimeException('Stripe refunds are not available until the gateway is configured.');
     }
 }
