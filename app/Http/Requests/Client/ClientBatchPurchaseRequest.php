@@ -21,7 +21,7 @@ class ClientBatchPurchaseRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.plan_id' => ['required', 'exists:plans,id'],
-            'payment_gateway' => ['nullable', 'string', 'in:razorpay,stripe,payu,cashfree'],
+            'payment_gateway' => ['nullable', 'string', 'in:razorpay'],
             'coupon_code' => ['nullable', 'string', 'max:50'],
         ];
     }

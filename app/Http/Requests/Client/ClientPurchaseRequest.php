@@ -25,7 +25,7 @@ class ClientPurchaseRequest extends FormRequest
                     fn ($query) => $query->where('product_id', $this->input('product_id'))
                 ),
             ],
-            'payment_gateway' => ['nullable', 'string', 'in:razorpay,stripe,payu,cashfree'],
+            'payment_gateway' => ['nullable', 'string', 'in:razorpay'],
             'coupon_code' => ['nullable', 'string', 'max:50'],
         ];
     }

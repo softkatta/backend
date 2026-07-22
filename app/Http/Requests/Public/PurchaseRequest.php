@@ -37,7 +37,7 @@ class PurchaseRequest extends FormRequest
             'state' => ['nullable', 'string', 'max:100'],
             'pincode' => ['nullable', 'string', 'max:10'],
             'country' => ['nullable', 'string', 'max:100'],
-            'payment_gateway' => ['nullable', 'string', 'in:razorpay,stripe,payu,cashfree'],
+            'payment_gateway' => ['nullable', 'string', 'in:razorpay'],
             'recaptcha_token' => ['nullable', 'string'],
         ];
     }
