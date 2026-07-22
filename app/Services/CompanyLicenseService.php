@@ -264,6 +264,7 @@ class CompanyLicenseService
 
         $installation->update(['last_verified_at' => now()]);
         $license->update(['last_verified_at' => now()]);
+        $this->captureSeatUsage($license, $request);
 
         $this->log(
             $integration,
@@ -772,6 +773,45 @@ class CompanyLicenseService
         }
 
         return null;
+    }
+
+    /**
+     * Persist product-reported seat counts so the client portal can show remaining seats.
+     */
+    protected function captureSeatUsage(LicenseKey $license, Request $request): void
+    {
+        $usage = $request->input('usage');
+        if (! is_array($usage)) {
+            $users = $request->input('used_users');
+            $students = $request->input('used_students');
+            if ($users === null && $students === null) {
+                return;
+            }
+            $usage = [
+                'users' => $users,
+                'students' => $students,
+            ];
+        }
+
+        $meta = is_array($license->meta) ? $license->meta : [];
+        $changed = false;
+
+        if (array_key_exists('users', $usage) && $usage['users'] !== null && $usage['users'] !== '') {
+            $meta['used_users'] = max(0, (int) $usage['users']);
+            $changed = true;
+        }
+
+        if (array_key_exists('students', $usage) && $usage['students'] !== null && $usage['students'] !== '') {
+            $meta['used_students'] = max(0, (int) $usage['students']);
+            $changed = true;
+        }
+
+        if (! $changed) {
+            return;
+        }
+
+        $meta['usage_reported_at'] = now()->toIso8601String();
+        $license->forceFill(['meta' => $meta])->save();
     }
 
     protected function resolveTenantForLicense(LicenseKey $license, ?string $forDomain = null): ?Tenant

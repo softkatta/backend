@@ -99,6 +99,18 @@ class LicenseService
             'max_branches' => $payload['max_branches'],
         ];
 
+        $usedUsers = max(0, (int) ($meta['used_users'] ?? 0));
+        $usedStudents = max(0, (int) ($meta['used_students'] ?? 0));
+        $usageReported = ! empty($meta['usage_reported_at']);
+        $data['seat_usage'] = [
+            'users' => $usedUsers,
+            'students' => $usedStudents,
+            'remaining_users' => max(0, (int) $payload['max_users'] - $usedUsers),
+            'remaining_students' => max(0, (int) $payload['max_students'] - $usedStudents),
+            'reported_at' => $meta['usage_reported_at'] ?? null,
+            'is_reported' => $usageReported,
+        ];
+
         $productMeta = is_array($license->product?->meta) ? $license->product->meta : [];
         $data['seat_pricing'] = [
             'price_per_extra_user' => (float) ($productMeta['price_per_extra_user'] ?? 0),
