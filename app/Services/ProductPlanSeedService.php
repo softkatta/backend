@@ -99,12 +99,33 @@ class ProductPlanSeedService
         }
 
         $yearly = [
-            'study-point-basic-yearly' => ['name' => 'Basic (Yearly)', 'price' => 2999 * 12, 'discount' => 0.20, 'sort_order' => 4],
-            'study-point-pro-yearly' => ['name' => 'Professional (Yearly)', 'price' => 5999 * 12, 'discount' => 0.20, 'sort_order' => 5],
-            'study-point-enterprise-yearly' => ['name' => 'Enterprise (Yearly)', 'price' => 12999 * 12, 'discount' => 0.20, 'sort_order' => 6],
+            'study-point-basic-yearly' => [
+                'name' => 'Basic (Yearly)',
+                'price' => 2999 * 12,
+                'discount' => 0.20,
+                'sort_order' => 4,
+                'limits_from' => 'study-point-basic',
+            ],
+            'study-point-pro-yearly' => [
+                'name' => 'Professional (Yearly)',
+                'price' => 5999 * 12,
+                'discount' => 0.20,
+                'sort_order' => 5,
+                'limits_from' => 'study-point-pro',
+            ],
+            'study-point-enterprise-yearly' => [
+                'name' => 'Enterprise (Yearly)',
+                'price' => 12999 * 12,
+                'discount' => 0.20,
+                'sort_order' => 6,
+                'limits_from' => 'study-point-enterprise',
+            ],
         ];
 
+        $monthlyBySlug = collect($plans)->keyBy('slug');
+
         foreach ($yearly as $slug => $yearlyPlan) {
+            $limits = $monthlyBySlug->get($yearlyPlan['limits_from'])['limits'] ?? [];
             Plan::updateOrCreate(
                 ['product_id' => $product->id, 'slug' => $slug],
                 [
@@ -120,7 +141,7 @@ class ProductPlanSeedService
                     'is_active' => true,
                     'sort_order' => $yearlyPlan['sort_order'],
                     'features' => [],
-                    'limits' => [],
+                    'limits' => $limits,
                 ],
             );
         }
@@ -181,7 +202,13 @@ class ProductPlanSeedService
                 'billing_cycle' => 'yearly',
                 'is_popular' => false,
                 'sort_order' => 3,
-                'limits' => [],
+                'limits' => [
+                    'max_branches' => 1,
+                    'max_users' => 5,
+                    'max_staff' => 5,
+                    'max_storage' => 10,
+                    'enabled_modules' => ['billing', 'inventory', 'gst'],
+                ],
             ],
         ];
 
@@ -250,7 +277,14 @@ class ProductPlanSeedService
                 'billing_cycle' => 'yearly',
                 'is_popular' => false,
                 'sort_order' => 3,
-                'limits' => [],
+                'limits' => [
+                    'max_branches' => 2,
+                    'max_users' => 25,
+                    'max_staff' => 25,
+                    'max_students' => 500,
+                    'max_storage' => 20,
+                    'enabled_modules' => ['admissions', 'attendance', 'fees', 'parent_portal', 'notifications'],
+                ],
             ],
         ];
 
