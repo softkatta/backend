@@ -793,25 +793,31 @@ class CompanyLicenseService
             ];
         }
 
-        $meta = is_array($license->meta) ? $license->meta : [];
-        $changed = false;
-
-        if (array_key_exists('users', $usage) && $usage['users'] !== null && $usage['users'] !== '') {
-            $meta['used_users'] = max(0, (int) $usage['users']);
-            $changed = true;
-        }
-
-        if (array_key_exists('students', $usage) && $usage['students'] !== null && $usage['students'] !== '') {
-            $meta['used_students'] = max(0, (int) $usage['students']);
-            $changed = true;
-        }
-
-        if (! $changed) {
+        $hasUsers = array_key_exists('users', $usage) && $usage['users'] !== null && $usage['users'] !== '';
+        $hasStudents = array_key_exists('students', $usage) && $usage['students'] !== null && $usage['students'] !== '';
+        if (! $hasUsers && ! $hasStudents) {
             return;
         }
 
-        $meta['usage_reported_at'] = now()->toIso8601String();
-        $license->forceFill(['meta' => $meta])->save();
+        DB::transaction(function () use ($license, $usage, $hasUsers, $hasStudents) {
+            $locked = LicenseKey::query()->whereKey($license->id)->lockForUpdate()->first();
+            if (! $locked) {
+                return;
+            }
+
+            $meta = is_array($locked->meta) ? $locked->meta : [];
+
+            if ($hasUsers) {
+                $meta['used_users'] = max(0, (int) $usage['users']);
+            }
+
+            if ($hasStudents) {
+                $meta['used_students'] = max(0, (int) $usage['students']);
+            }
+
+            $meta['usage_reported_at'] = now()->toIso8601String();
+            $locked->forceFill(['meta' => $meta])->save();
+        });
     }
 
     protected function resolveTenantForLicense(LicenseKey $license, ?string $forDomain = null): ?Tenant

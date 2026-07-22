@@ -60,6 +60,12 @@ class ExtraSeatsPurchaseService
         }
 
         $quote = $this->quote($product, $extraUsers, $extraStudents);
+        if ($extraUsers > 0 && $quote['price_per_extra_user'] <= 0) {
+            throw new InvalidArgumentException('Extra user pricing is not configured for this product. Ask SoftKatta Admin to set a price per extra user.');
+        }
+        if ($extraStudents > 0 && $quote['price_per_extra_student'] <= 0) {
+            throw new InvalidArgumentException('Extra student pricing is not configured for this product. Ask SoftKatta Admin to set a price per extra student.');
+        }
         if ($quote['subtotal'] <= 0) {
             throw new InvalidArgumentException('Extra seat pricing is not configured for this product. Ask SoftKatta Admin to set prices.');
         }
@@ -128,38 +134,42 @@ class ExtraSeatsPurchaseService
 
     public function applyPaidExtraSeats(LicenseKey $license, Invoice $invoice): LicenseKey
     {
-        $details = $invoice->billing_details ?? [];
-        if (! empty($details['extra_seats_applied_at'])) {
-            return $license->fresh(['product', 'subscription.plan', 'user']);
-        }
+        return DB::transaction(function () use ($license, $invoice) {
+            $lockedInvoice = Invoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $details = $lockedInvoice->billing_details ?? [];
+            if (! empty($details['extra_seats_applied_at'])) {
+                return LicenseKey::query()->with(['product', 'subscription.plan', 'user'])->findOrFail($license->id);
+            }
 
-        $extraUsers = max(0, (int) ($details['extra_users'] ?? 0));
-        $extraStudents = max(0, (int) ($details['extra_students'] ?? 0));
+            $extraUsers = max(0, (int) ($details['extra_users'] ?? 0));
+            $extraStudents = max(0, (int) ($details['extra_students'] ?? 0));
 
-        $meta = is_array($license->meta) ? $license->meta : [];
-        $meta['extra_max_users'] = max(0, (int) ($meta['extra_max_users'] ?? 0)) + $extraUsers;
-        $meta['extra_max_students'] = max(0, (int) ($meta['extra_max_students'] ?? 0)) + $extraStudents;
+            $lockedLicense = LicenseKey::query()->whereKey($license->id)->lockForUpdate()->firstOrFail();
+            $meta = is_array($lockedLicense->meta) ? $lockedLicense->meta : [];
+            $meta['extra_max_users'] = max(0, (int) ($meta['extra_max_users'] ?? 0)) + $extraUsers;
+            $meta['extra_max_students'] = max(0, (int) ($meta['extra_max_students'] ?? 0)) + $extraStudents;
 
-        $license->update(['meta' => $meta]);
+            $lockedLicense->update(['meta' => $meta]);
 
-        $invoice->update([
-            'billing_details' => array_merge($details, [
-                'extra_seats_applied_at' => now()->toIso8601String(),
-            ]),
-        ]);
+            $lockedInvoice->update([
+                'billing_details' => array_merge($details, [
+                    'extra_seats_applied_at' => now()->toIso8601String(),
+                ]),
+            ]);
 
-        $this->licenseService->recordHistory(
-            $license->fresh(),
-            'extra_seats_purchased',
-            [
-                'extra_users' => $extraUsers,
-                'extra_students' => $extraStudents,
-                'invoice_id' => $invoice->id,
-            ],
-            $license->user_id,
-        );
+            $this->licenseService->recordHistory(
+                $lockedLicense->fresh(),
+                'extra_seats_purchased',
+                [
+                    'extra_users' => $extraUsers,
+                    'extra_students' => $extraStudents,
+                    'invoice_id' => $lockedInvoice->id,
+                ],
+                $lockedLicense->user_id,
+            );
 
-        return $license->fresh(['product', 'subscription.plan', 'user']);
+            return $lockedLicense->fresh(['product', 'subscription.plan', 'user']);
+        });
     }
 
     /**

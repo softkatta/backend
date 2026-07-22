@@ -428,9 +428,11 @@ class PurchaseService
             $license = $licenseId > 0
                 ? \App\Models\LicenseKey::query()->find($licenseId)
                 : $subscription->licenseKey;
-            if ($license) {
-                $this->extraSeatsPurchaseService->applyPaidExtraSeats($license, $invoice);
+            if (! $license) {
+                throw new \RuntimeException('Paid extra-seats invoice is missing a license to update.');
             }
+
+            $this->extraSeatsPurchaseService->applyPaidExtraSeats($license, $invoice);
 
             return $subscription->fresh();
         }
