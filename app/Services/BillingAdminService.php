@@ -193,7 +193,7 @@ class BillingAdminService
                     'status' => InvoiceStatus::Paid,
                     'paid_at' => $paidAt,
                 ]);
-                $this->activateSubscriptionForInvoice($invoice);
+                $this->finalizeSubscriptionForPaidInvoice($invoice);
             } elseif ($invoice->status === InvoiceStatus::Draft) {
                 $invoice->update(['status' => InvoiceStatus::Sent]);
             }
@@ -286,6 +286,24 @@ class BillingAdminService
                 // Domains must be assigned in SoftKatta Admin → Tenants first.
             }
         }
+    }
+
+    /**
+     * For fully paid invoices, run the same fulfillment flow used by webhooks/admin invoice-paid.
+     * This ensures renewal invoices extend subscription dates/status correctly.
+     */
+    protected function finalizeSubscriptionForPaidInvoice(Invoice $invoice): void
+    {
+        $invoice->loadMissing('order');
+
+        if ($invoice->order) {
+            app(PurchaseService::class)->fulfillPaidOrder($invoice->order->fresh(['invoice']));
+
+            return;
+        }
+
+        // Fallback for legacy invoices without order linkage.
+        $this->activateSubscriptionForInvoice($invoice);
     }
 
     public function resolveInvoiceForManualPayment(?string $invoiceId, ?string $orderId, ?string $subscriptionId = null): Invoice
