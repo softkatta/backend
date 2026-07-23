@@ -233,6 +233,40 @@ class SubscriptionController extends BaseApiController
     }
 
     /**
+     * Create a payment-due invoice for a manual subscription renewal.
+     * The subscription is extended only after that invoice is paid.
+     */
+    public function renew(
+        Request $request,
+        Subscription $subscription,
+        SubscriptionRenewalService $renewals,
+        SecurityService $security,
+    ): JsonResponse {
+        $query = Subscription::withoutGlobalScopes();
+        $security->applyAdminWorkspaceScope($query, $request);
+        $scoped = $query->with(['user', 'product', 'plan'])->findOrFail($subscription->id);
+
+        if (! $scoped->plan?->billing_cycle?->months()) {
+            return $this->error('This subscription plan cannot be renewed.', 422);
+        }
+
+        if ($renewals->hasOpenRenewalInvoice($scoped)) {
+            return $this->error('A renewal invoice is already awaiting payment for this subscription.', 422);
+        }
+
+        $result = $renewals->createRenewalInvoice($scoped);
+
+        return $this->success(
+            [
+                'subscription' => $scoped->fresh(['user', 'product', 'plan', 'tenant']),
+                'order' => $result['order'],
+                'invoice' => $result['invoice'],
+            ],
+            'Renewal invoice created. Record payment to extend the subscription.',
+        );
+    }
+
+    /**
      * Backfill order + invoice + payment for subscriptions created before billing was wired.
      */
     public function createBilling(

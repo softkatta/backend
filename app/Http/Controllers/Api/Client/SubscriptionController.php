@@ -68,6 +68,38 @@ class SubscriptionController extends BaseApiController
         return $this->success($subscription->fresh(), 'Subscription cancellation scheduled. Access continues until expiry; no renewal charge will be created.');
     }
 
+    /**
+     * Let a customer request renewal from their subscriptions or product page.
+     * Payment of the generated invoice is what actually extends access.
+     */
+    public function renew(Request $request, Subscription $subscription): JsonResponse
+    {
+        if ($subscription->user_id !== $request->user()->id) {
+            return $this->error('Unauthorized.', 403);
+        }
+
+        $subscription->load(['user', 'product', 'plan']);
+
+        if (! $subscription->plan?->billing_cycle?->months()) {
+            return $this->error('This subscription plan cannot be renewed.', 422);
+        }
+
+        if ($this->renewals->hasOpenRenewalInvoice($subscription)) {
+            return $this->error('A renewal invoice is already awaiting payment for this subscription.', 422);
+        }
+
+        $result = $this->renewals->createRenewalInvoice($subscription);
+
+        return $this->success(
+            [
+                'subscription' => $subscription->fresh(['product', 'plan', 'tenant', 'user']),
+                'order' => $result['order'],
+                'invoice' => $result['invoice'],
+            ],
+            'Renewal invoice created. Complete payment from Invoices to extend your subscription.',
+        );
+    }
+
     public function domainStatus(Request $request, Subscription $subscription): JsonResponse
     {
         if ($subscription->user_id !== $request->user()->id) {

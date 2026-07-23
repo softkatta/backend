@@ -180,6 +180,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('subscriptions', [ClientSubscriptionController::class, 'index']);
         Route::get('subscriptions/{subscription}', [ClientSubscriptionController::class, 'show']);
         Route::post('subscriptions/{subscription}/cancel', [ClientSubscriptionController::class, 'cancel']);
+        Route::post('subscriptions/{subscription}/renew', [ClientSubscriptionController::class, 'renew']);
         Route::get('subscriptions/{subscription}/domains', [ClientSubscriptionController::class, 'domainStatus']);
         Route::post('subscriptions/{subscription}/domains', [ClientSubscriptionController::class, 'submitDomains']);
         Route::post('subscriptions/{subscription}/domains/skip', [ClientSubscriptionController::class, 'skipDomains']);
@@ -429,6 +430,7 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('services', AdminServiceController::class);
 
         Route::post('subscriptions/{subscription}/cancel', [AdminSubscriptionController::class, 'cancel']);
+        Route::post('subscriptions/{subscription}/renew', [AdminSubscriptionController::class, 'renew']);
         Route::post('subscriptions/{subscription}/create-billing', [AdminSubscriptionController::class, 'createBilling']);
         Route::apiResource('subscriptions', AdminSubscriptionController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
         Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'destroy']);
@@ -596,4 +598,3 @@ Route::prefix('v1')->group(function (): void {
         Route::post('razorpay', [PaymentWebhookController::class, 'razorpay']);
     });
 });
-
