@@ -178,6 +178,40 @@ class LicenseService
     }
 
     /**
+     * Generate a temporary license for a trial subscription.
+     * This does not require tenant domains and will expire at the subscription's trial_ends_at.
+     * Idempotent: returns existing license if present.
+     */
+    public function generateTemporaryForSubscription(Subscription $subscription): LicenseKey
+    {
+        if ($existing = $subscription->licenseKey) {
+            return $existing;
+        }
+
+        $subscription->loadMissing(['plan', 'product', 'tenant', 'user']);
+        $product = $subscription->product;
+
+        $expires = $subscription->trial_ends_at ?? null;
+
+        return LicenseKey::create([
+            'subscription_id' => $subscription->id,
+            'product_id' => $subscription->product_id,
+            'user_id' => $subscription->user_id,
+            'license_key' => $this->generateKey($product),
+            'allowed_domains' => [],
+            'max_devices' => 1,
+            'max_domains' => 0,
+            'product_version' => $product?->currentVersion(),
+            'status' => LicenseStatus::Active,
+            'is_product_active' => true,
+            'activated_at' => now(),
+            'expires_at' => $expires,
+            'activation_count' => 0,
+            'meta' => array_merge(is_array($subscription->meta ?? []) ? $subscription->meta : [], ['temporary_trial' => true]),
+        ]);
+    }
+
+    /**
      * Sync license allowed_domains from SoftKatta Admin domains for this subscription.
      */
     public function syncAllowedDomainsFromTenant(LicenseKey $license, Tenant $tenant): LicenseKey
@@ -195,6 +229,33 @@ class LicenseService
             'allowed_domains' => $domains,
             'max_domains' => max((int) $license->max_domains, count($domains)),
         ]);
+
+        // If this was a temporary trial license and domains are now assigned,
+        // promote it to a permanent license by clearing the temporary flag
+        // and setting an appropriate expires_at (based on plan / subscription).
+        $meta = is_array($license->meta) ? $license->meta : [];
+        $isTemporary = ! empty($meta['temporary_trial']);
+
+        if ($isTemporary && count($domains) > 0) {
+            // Compute new expiry similar to generateForSubscription
+            $expires = null;
+            $plan = $subscription?->plan;
+
+            if ($plan && $plan->billing_cycle->months() !== null) {
+                $base = $subscription->starts_at ?? now();
+                $expires = $base->copy()->addMonths($plan->billing_cycle->months());
+            } elseif ($subscription && $subscription->ends_at) {
+                $expires = $subscription->ends_at;
+            }
+
+            $meta = $meta;
+            unset($meta['temporary_trial']);
+
+            $license->update([
+                'meta' => $meta,
+                'expires_at' => $expires,
+            ]);
+        }
 
         return $license->fresh();
     }

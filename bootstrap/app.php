@@ -81,6 +81,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->dailyAt('02:05')
             ->withoutOverlapping()
             ->name('subscriptions-trial-notify');
+
+        // Expire licenses whose expires_at has passed (temporary trial licenses)
+        $schedule->command('licenses:expire')
+            ->dailyAt('00:10')
+            ->withoutOverlapping()
+            ->name('licenses-expire');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

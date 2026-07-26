@@ -158,7 +158,11 @@ class PurchaseService
                 'auto_renew' => false,
             ]);
 
-            $this->issueLicenseIfEligible($subscription);
+            // If trial has a finite end, generate a temporary license that expires
+            // when the trial ends so customers can use product features during trial.
+            if ($trialEndsAt) {
+                $this->licenseService->generateTemporaryForSubscription($subscription);
+            }
 
             return [
                 'requires_payment' => false,
@@ -516,7 +520,10 @@ class PurchaseService
     {
         $subscription->refresh();
 
-        if (! in_array($subscription->status, [SubscriptionStatus::Active, SubscriptionStatus::Trial], true)) {
+        // Only auto-issue licenses for fully active subscriptions.
+        // Trials should not automatically receive a license unless domains are provided
+        // and admin explicitly issues one. This avoids issuing licenses during trial period.
+        if ($subscription->status !== SubscriptionStatus::Active) {
             return;
         }
 
