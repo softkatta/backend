@@ -150,7 +150,7 @@ class PurchaseService
                 'tenant_id' => $user->tenant_id,
                 'user_id' => $user->id,
                 'product_id' => $product->id,
-                'plan_id' => null,
+                'plan_id' => $plan->id,
                 'status' => SubscriptionStatus::Trial,
                 'starts_at' => $startsAt,
                 'ends_at' => null,
