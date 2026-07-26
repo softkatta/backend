@@ -39,7 +39,11 @@ class EnsureTenantAccess
         if ($this->requiresEntitledSubscription($request)) {
             $hasEntitledSubscription = Subscription::query()
                 ->where('tenant_id', $user->tenant_id)
-                ->whereIn('status', [SubscriptionStatus::Active->value, SubscriptionStatus::ExpiringSoon->value])
+                ->whereIn('status', [
+                    SubscriptionStatus::Active->value,
+                    SubscriptionStatus::Trial->value,
+                    SubscriptionStatus::ExpiringSoon->value,
+                ])
                 ->where(function ($query): void {
                     $query->whereNull('ends_at')
                         ->orWhere('ends_at', '>=', now());

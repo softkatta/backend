@@ -50,6 +50,17 @@ class SubscriptionController extends BaseApiController
                 $paymentStatus = $amountDue <= 0 ? 'paid' : ($amountPaid > 0 ? 'partial' : 'pending');
             }
 
+            $isTrialSubscription = $subscription->status instanceof SubscriptionStatus
+                ? $subscription->status === SubscriptionStatus::Trial
+                : ($subscription->status === SubscriptionStatus::Trial->value);
+
+            if ($isTrialSubscription) {
+                $invoiceTotal = 0.0;
+                $amountPaid = 0.0;
+                $amountDue = 0.0;
+                $paymentStatus = 'none';
+            }
+
             $subscription->setAttribute('invoice_id', $invoice?->id);
             $subscription->setAttribute('invoice_total', $invoiceTotal);
             $subscription->setAttribute('amount_paid', $amountPaid);
@@ -130,12 +141,18 @@ class SubscriptionController extends BaseApiController
             ? $startsAt->copy()->addDays($product->trial_days)
             : null;
 
+        $status = $data['status'] ?? SubscriptionStatus::Active->value;
+        $isTrialSubscription = $applyTrial && $product->has_free_trial;
+        if ($isTrialSubscription) {
+            $status = SubscriptionStatus::Trial->value;
+        }
+
         $subscription = Subscription::create([
             'tenant_id' => $user->tenant_id,
             'user_id' => $user->id,
             'product_id' => $product->id,
             'plan_id' => $plan->id,
-            'status' => $data['status'] ?? SubscriptionStatus::Active->value,
+            'status' => $status,
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
             'trial_ends_at' => $trialEndsAt,
@@ -143,7 +160,7 @@ class SubscriptionController extends BaseApiController
         ]);
 
         $createBilling = $data['create_billing'] ?? true;
-        if ($createBilling) {
+        if ($createBilling && ! $isTrialSubscription) {
             $billingAdmin->createPendingBillingForSubscription(
                 $subscription->fresh(['user', 'product', 'plan']),
             );
@@ -156,7 +173,9 @@ class SubscriptionController extends BaseApiController
             } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
                 return $this->success(
                     $subscription->load(['user', 'product', 'plan', 'tenant', 'invoices']),
-                    'Subscription created with pending order/invoice/payment. Record payment when cash, cheque, or online is received. Assign domains before a license can be generated.',
+                    $isTrialSubscription
+                        ? 'Trial subscription created. Assign domains before a license can be generated.'
+                        : 'Subscription created with pending order/invoice/payment. Record payment when cash, cheque, or online is received. Assign domains before a license can be generated.',
                     201
                 );
             }
@@ -164,9 +183,11 @@ class SubscriptionController extends BaseApiController
 
         return $this->success(
             $subscription->load(['user', 'product', 'plan', 'tenant', 'invoices']),
-            $createBilling
-                ? 'Subscription created. Order, invoice, and payment are pending until you record receipt.'
-                : 'Subscription created.',
+            $isTrialSubscription
+                ? 'Trial subscription created.'
+                : ($createBilling
+                    ? 'Subscription created. Order, invoice, and payment are pending until you record receipt.'
+                    : 'Subscription created.'),
             201
         );
     }
