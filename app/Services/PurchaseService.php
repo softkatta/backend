@@ -130,6 +130,44 @@ class PurchaseService
         });
     }
 
+    public function startTrialForExistingUser(User $user, Product $product, Plan $plan): array
+    {
+        return DB::transaction(function () use ($user, $product, $plan) {
+            if (! $user->tenant_id) {
+                $tenant = $this->tenantService->create([
+                    'name' => $user->company_name ?? $user->name.' Workspace',
+                ], $user);
+                $user->update(['tenant_id' => $tenant->id]);
+            }
+
+            $user->refresh();
+
+            $startsAt = now();
+            $trialDays = (int) ($plan->trial_days ?? ($product->has_free_trial ? $product->trial_days : 0));
+            $trialEndsAt = $trialDays > 0 ? $startsAt->copy()->addDays($trialDays) : null;
+
+            $subscription = Subscription::create([
+                'tenant_id' => $user->tenant_id,
+                'user_id' => $user->id,
+                'product_id' => $product->id,
+                'plan_id' => null,
+                'status' => SubscriptionStatus::Trial,
+                'starts_at' => $startsAt,
+                'ends_at' => null,
+                'trial_ends_at' => $trialEndsAt,
+                'auto_renew' => false,
+            ]);
+
+            $this->issueLicenseIfEligible($subscription);
+
+            return [
+                'requires_payment' => false,
+                'skip_payment_reason' => 'free_trial',
+                'subscription' => $subscription->fresh(),
+            ];
+        });
+    }
+
     /**
      * Purchase for an authenticated client (no new user registration).
      *
@@ -157,7 +195,7 @@ class PurchaseService
             ]]);
             $lineDiscount = (float) ($couponContext['line_discounts'][0] ?? 0);
             $netAmount = max(0, $amount - $lineDiscount);
-            $requiresPayment = ! $product->has_free_trial && $netAmount > 0;
+            $requiresPayment = $netAmount > 0;
 
             $subscription = $this->createSubscription($user, $product, $plan, $requiresPayment);
             $order = $this->createOrder(
@@ -257,7 +295,7 @@ class PurchaseService
                 $amount = (float) $lineItem['amount'];
                 $lineDiscount = (float) ($couponContext['line_discounts'][$index] ?? 0);
                 $netAmount = max(0, $amount - $lineDiscount);
-                $requiresPayment = ! $product->has_free_trial && $netAmount > 0;
+                $requiresPayment = $netAmount > 0;
 
                 $subscription = $this->createSubscription($user, $product, $plan, $requiresPayment);
                 $order = $this->createOrder(

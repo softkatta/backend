@@ -108,7 +108,7 @@ class ProductController extends BaseApiController
             return $this->error('No active plan available for trial.', 422);
         }
 
-        $result = $purchaseService->purchaseForExistingUser($request->user(), $product, $plan, null, null);
+        $result = $purchaseService->startTrialForExistingUser($request->user(), $product, $plan);
 
         return $this->success($result, 'Free trial started. You can use the product for the trial period.');
     }
