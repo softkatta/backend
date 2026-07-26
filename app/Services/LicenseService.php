@@ -479,6 +479,8 @@ class LicenseService
         $modules = $limits['enabled_modules'] ?? $this->defaultModules($product?->slug);
         $registeredDomain = collect($license->allowed_domains ?? [])->first();
 
+        $features = $this->normalizePlanFeatures($plan);
+
         return [
             'license_status' => $license->status->value,
             'subscription_status' => $license->subscription?->status?->value,
@@ -501,6 +503,7 @@ class LicenseService
             ],
             'limits' => $this->buildLimitsPayload($license, $limits),
             'modules' => $modules,
+            'features' => $features,
             'addons' => $limits['addons'] ?? [],
             'api' => [
                 // Products should re-check often so admin suspend/deactivate takes effect quickly.
@@ -773,6 +776,8 @@ class LicenseService
         // Default modules by product slug if plan has no limits specified
         $modules = $limits['enabled_modules'] ?? $this->defaultModules($product?->slug);
 
+        $features = $this->normalizePlanFeatures($plan);
+
         return [
             'status'          => 'active',
             'license_key'     => $license->license_key,
@@ -792,6 +797,7 @@ class LicenseService
             ],
             'limits'          => $this->buildLimitsPayload($license, $limits),
             'enabled_modules' => $modules,
+            'features'        => $features,
             'customer'        => [
                 'id'    => $user?->id,
                 'name'  => $user?->name,
@@ -810,6 +816,32 @@ class LicenseService
     private function errorResponse(string $status, string $message): array
     {
         return ['status' => $status, 'message' => $message];
+    }
+
+    private function normalizePlanFeatures(?\App\Models\Plan $plan): array
+    {
+        if (! $plan) {
+            return [];
+        }
+
+        $features = $plan->features;
+        if (! is_array($features)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($features as $feature) {
+            if (is_string($feature) && trim($feature) !== '') {
+                $normalized[] = trim($feature);
+            } elseif (is_array($feature)) {
+                $value = $feature['name'] ?? $feature['title'] ?? $feature['label'] ?? null;
+                if (is_string($value) && trim($value) !== '') {
+                    $normalized[] = trim($value);
+                }
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     public function defaultModules(?string $productSlug): array

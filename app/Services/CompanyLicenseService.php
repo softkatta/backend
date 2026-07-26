@@ -62,7 +62,7 @@ class CompanyLicenseService
         if ($tenantGate !== null) {
             $this->log($integration, $request, $license, '/company/activate', false, $tenantGate['error_code'], $tenantGate['http_status'], $domain, $fingerprint);
 
-            return $tenantGate;
+            return $this->error($tenantGate['error_code'], $tenantGate['message'], $tenantGate['http_status']);
         }
 
         // SoftKatta Admin domains (product-scoped) are the source of truth — sync onto the license.
@@ -623,6 +623,7 @@ class CompanyLicenseService
         return [
             'modules' => $this->normalizeModules($signed['modules'] ?? []),
             'limits' => $signed['limits'] ?? [],
+            'features' => $signed['features'] ?? [],
             'addons' => $signed['addons'] ?? [],
             'plan' => $plan?->name ?? $plan?->slug ?? null,
             'expires_at' => $license->expires_at?->toIso8601String(),

@@ -66,6 +66,7 @@ class CompanyApiLicenseTest extends TestCase
             'slug' => 'pro',
             'price' => 100,
             'billing_cycle' => BillingCycle::Yearly,
+            'features' => ['Student Management', 'Attendance', 'Fee Collection'],
             'limits' => [
                 'max_students' => 100,
                 'max_branches' => 2,
@@ -196,6 +197,37 @@ class CompanyApiLicenseTest extends TestCase
 
         $oldToken->assertStatus(401)
             ->assertJsonPath('error_code', 'INVALID_INSTALL_TOKEN');
+    }
+
+    public function test_plan_features_are_returned_in_license_configuration(): void
+    {
+        $activate = $this->signedJson('POST', '/api/v1/company/activate', [
+            'license_key' => $this->license->license_key,
+            'installation_id' => null,
+        ], [
+            'domain' => 'study.local',
+            'installation_id' => '',
+            'fingerprint' => hash('sha256', 'server-1'),
+        ]);
+
+        $activate->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.configuration_profile.features.0', 'Student Management')
+            ->assertJsonPath('data.configuration_profile.features.1', 'Attendance')
+            ->assertJsonPath('data.configuration_profile.features.2', 'Fee Collection');
+
+        $verify = $this->signedJson('POST', '/api/v1/company/verify', [], [
+            'domain' => 'study.local',
+            'installation_id' => $activate->json('data.installation_id'),
+            'fingerprint' => hash('sha256', 'server-1'),
+            'install_token' => $activate->json('data.install_token'),
+        ]);
+
+        $verify->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.features.0', 'Student Management')
+            ->assertJsonPath('data.features.1', 'Attendance')
+            ->assertJsonPath('data.features.2', 'Fee Collection');
     }
 
     public function test_duplicate_nonce_is_rejected(): void
