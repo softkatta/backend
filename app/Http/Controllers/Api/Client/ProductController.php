@@ -6,6 +6,9 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Subscription;
+use App\Services\PurchaseService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use App\Services\SecurityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -79,5 +82,36 @@ class ProductController extends BaseApiController
             ->firstOrFail();
 
         return $this->success($product);
+    }
+
+    public function startTrial(Request $request, string $slug, PurchaseService $purchaseService): JsonResponse
+    {
+        $product = Product::where('slug', $slug)->firstOrFail();
+
+        if (! $product->has_free_trial) {
+            return $this->error('This product does not offer a free trial.', 422);
+        }
+
+        // Prevent multiple trials per user for the same product
+        $already = Subscription::query()
+            ->where('user_id', $request->user()->id)
+            ->where('product_id', $product->id)
+            ->whereNotNull('trial_ends_at')
+            ->exists();
+
+        if ($already) {
+            return $this->error('A free trial has already been used for your account.', 422);
+        }
+
+        // Pick a default active plan for the product
+        $plan = $product->plans()->where('is_active', true)->orderBy('sort_order')->first();
+
+        if (! $plan) {
+            return $this->error('No active plan available for trial.', 422);
+        }
+
+        $result = $purchaseService->purchaseForExistingUser($request->user(), $product, $plan, null, null);
+
+        return $this->success($result, 'Free trial started. You can use the product for the trial period.');
     }
 }

@@ -5,6 +5,10 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\StorePlanRequest;
 use App\Models\Plan;
+use App\Models\Product;
+use App\Services\LicenseService;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -29,6 +33,17 @@ class PlanController extends BaseApiController
         $data = $request->validated();
         $data['slug'] = $data['slug'] ?? Str::slug($data['name']);
 
+        // If super-admin is creating a plan and no enabled modules specified,
+        // default to product's full module set.
+        if (Auth::check() && Auth::user() instanceof User && Auth::user()->isSuperAdmin()) {
+            if (! isset($data['limits']['enabled_modules']) || empty($data['limits']['enabled_modules'])) {
+                $product = Product::find($data['product_id']);
+                if ($product) {
+                    $data['limits']['enabled_modules'] = app(LicenseService::class)->defaultModules($product->slug);
+                }
+            }
+        }
+
         $plan = Plan::create($data);
 
         return $this->success($plan, 'Plan created.', 201);
@@ -41,7 +56,18 @@ class PlanController extends BaseApiController
 
     public function update(StorePlanRequest $request, Plan $plan): JsonResponse
     {
-        $plan->update($request->validated());
+        $data = $request->validated();
+
+        if (Auth::check() && Auth::user() instanceof User && Auth::user()->isSuperAdmin()) {
+            if (! isset($data['limits']['enabled_modules']) || empty($data['limits']['enabled_modules'])) {
+                $product = $plan->product ?? Product::find($data['product_id'] ?? $plan->product_id);
+                if ($product) {
+                    $data['limits']['enabled_modules'] = app(LicenseService::class)->defaultModules($product->slug);
+                }
+            }
+        }
+
+        $plan->update($data);
 
         return $this->success($plan->fresh(), 'Plan updated.');
     }

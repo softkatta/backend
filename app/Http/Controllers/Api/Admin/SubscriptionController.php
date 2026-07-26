@@ -299,6 +299,36 @@ class SubscriptionController extends BaseApiController
         );
     }
 
+    public function applyTrial(Request $request, Subscription $subscription, SecurityService $security, \App\Services\LicenseService $licenseService): JsonResponse
+    {
+        $query = Subscription::withoutGlobalScopes();
+        $security->applyAdminWorkspaceScope($query, $request);
+        $scoped = $query->with(['user', 'product', 'plan', 'tenant'])->findOrFail($subscription->id);
+
+        $product = $scoped->product;
+        if (! $product->has_free_trial) {
+            return $this->error('This product does not have a free trial configured.', 422);
+        }
+
+        $trialEndsAt = now()->copy()->addDays($product->trial_days);
+
+        $scoped->update([
+            'trial_ends_at' => $trialEndsAt,
+            'status' => \App\Enums\SubscriptionStatus::Trial->value,
+        ]);
+
+        try {
+            $licenseService->generateForSubscription($scoped->fresh());
+        } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
+            // Ignore license generation failure; subscription created/updated.
+        }
+
+        return $this->success(
+            $scoped->fresh()->load(['user', 'product', 'plan', 'tenant', 'invoices']),
+            'Trial applied to subscription.'
+        );
+    }
+
     public function destroy(Request $request, Subscription $subscription, BillingAdminService $billingAdmin, SecurityService $security): JsonResponse
     {
         $query = Subscription::withoutGlobalScopes();

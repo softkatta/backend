@@ -812,11 +812,17 @@ class LicenseService
         return ['status' => $status, 'message' => $message];
     }
 
-    private function defaultModules(?string $productSlug): array
+    public function defaultModules(?string $productSlug): array
     {
         return match ($productSlug) {
-            'study-point-erp', 'coaching-erp' => [
+            'study-point-erp', 'study-point', 'study-point-management-software', 'coaching-erp' => [
                 'students', 'attendance', 'fees', 'batches', 'enquiries', 'reports', 'notices',
+            ],
+            'kindergarten', 'nursery-school', 'nursery-school-erp', 'nursery-school-management-software' => [
+                'admissions', 'attendance', 'fees', 'parent_portal', 'notifications',
+            ],
+            'medical-store', 'medical-store-management-software' => [
+                'billing', 'inventory', 'gst', 'purchase', 'reports',
             ],
             'library-management-system' => [
                 'books', 'members', 'issue_return', 'fines', 'reports',

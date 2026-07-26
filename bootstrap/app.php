@@ -74,6 +74,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->dailyAt('02:30')
             ->withoutOverlapping()
             ->name('sanctum-prune');
+
+        $schedule->command('subscriptions:notify-trial-end')
+            ->dailyAt('02:05')
+            ->withoutOverlapping()
+            ->name('subscriptions-trial-notify');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

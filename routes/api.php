@@ -206,6 +206,7 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('profile', [ProfileController::class, 'update']);
 
         Route::post('purchase', [ClientPurchaseController::class, 'store']);
+        Route::post('products/{slug}/trial', [ClientProductController::class, 'startTrial']);
         Route::post('purchase/batch', [ClientPurchaseController::class, 'storeBatch']);
         Route::post('coupons/validate', [ClientCouponController::class, 'validateCode']);
         Route::post('payments/verify', [ClientPaymentController::class, 'verify']);
@@ -432,6 +433,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('subscriptions/{subscription}/cancel', [AdminSubscriptionController::class, 'cancel']);
         Route::post('subscriptions/{subscription}/renew', [AdminSubscriptionController::class, 'renew']);
         Route::post('subscriptions/{subscription}/create-billing', [AdminSubscriptionController::class, 'createBilling']);
+        Route::post('subscriptions/{subscription}/apply-trial', [AdminSubscriptionController::class, 'applyTrial']);
         Route::apiResource('subscriptions', AdminSubscriptionController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
         Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'destroy']);
         Route::apiResource('invoices', AdminInvoiceController::class)->only(['index', 'show', 'update', 'destroy']);
