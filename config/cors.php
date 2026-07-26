@@ -6,12 +6,12 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => array_filter(explode(',', env(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,https://softkatta.in,https://www.softkatta.in'
-    ))),
+    'allowed_origins' => array_values(array_unique(array_filter(array_merge(
+        ['https://softkatta.in', 'https://www.softkatta.in', 'https://api.softkatta.in'],
+        array_filter(explode(',', env('CORS_ALLOWED_ORIGINS', '')))
+    )))),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => ['^https://(?:.+\.)?softkatta\.in$'],
 
     'allowed_headers' => ['*'],
 
