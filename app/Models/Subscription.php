@@ -6,6 +6,8 @@ use App\Enums\SubscriptionStatus;
 use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Subscription extends Model
 {
@@ -53,12 +55,17 @@ class Subscription extends Model
         return $this->belongsTo(Plan::class);
     }
 
-    public function invoices(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
     }
 
-    public function licenseKey(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function licenseKey(): HasOne
     {
         return $this->hasOne(LicenseKey::class);
     }

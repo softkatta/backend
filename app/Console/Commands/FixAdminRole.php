@@ -35,6 +35,7 @@ class FixAdminRole extends Command
 
             if (! $user) {
                 $this->warn("User not found: {$email}");
+
                 continue;
             }
 

@@ -12,7 +12,9 @@ use App\Services\HrStorageService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class JobApplicationController extends BaseApiController
 {
@@ -126,7 +128,7 @@ class JobApplicationController extends BaseApiController
         ]);
     }
 
-    public function export(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse|\Illuminate\Http\Response
+    public function export(Request $request): StreamedResponse|Response
     {
         $format = $request->string('format', 'csv');
         $applications = JobApplication::with('career:id,title,department')

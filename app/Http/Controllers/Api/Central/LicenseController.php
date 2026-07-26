@@ -56,7 +56,7 @@ class LicenseController extends BaseApiController
     {
         $validated = $request->validate([
             'license_key' => ['required', 'string'],
-            'domain'      => ['nullable', 'string', 'max:255'],
+            'domain' => ['nullable', 'string', 'max:255'],
         ]);
 
         $result = $this->licenseService->verify(
@@ -82,7 +82,7 @@ class LicenseController extends BaseApiController
 
         $validated = $request->validate([
             'license_key' => ['required', 'string'],
-            'domain'      => ['required', 'string', 'max:255'],
+            'domain' => ['required', 'string', 'max:255'],
         ]);
 
         $license = LicenseKey::where('license_key', $validated['license_key'])->first();
@@ -92,13 +92,13 @@ class LicenseController extends BaseApiController
         }
 
         if (! $license->status->isUsable()) {
-            return $this->error('License is ' . $license->status->value . ' and cannot be modified.', 422);
+            return $this->error('License is '.$license->status->value.' and cannot be modified.', 422);
         }
 
         $updated = $this->licenseService->activateDomain($license, $validated['domain']);
 
         return $this->success([
-            'license_key'     => $updated->license_key,
+            'license_key' => $updated->license_key,
             'allowed_domains' => $updated->allowed_domains,
         ], 'Domain activated.');
     }
@@ -116,7 +116,7 @@ class LicenseController extends BaseApiController
 
         $validated = $request->validate([
             'license_key' => ['required', 'string'],
-            'domain'      => ['required', 'string', 'max:255'],
+            'domain' => ['required', 'string', 'max:255'],
         ]);
 
         $license = LicenseKey::where('license_key', $validated['license_key'])->first();
@@ -128,7 +128,7 @@ class LicenseController extends BaseApiController
         $updated = $this->licenseService->deactivateDomain($license, $validated['domain']);
 
         return $this->success([
-            'license_key'     => $updated->license_key,
+            'license_key' => $updated->license_key,
             'allowed_domains' => $updated->allowed_domains,
         ], 'Domain deactivated.');
     }

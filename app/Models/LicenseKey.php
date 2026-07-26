@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\LicenseStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class LicenseKey extends Model
@@ -38,17 +39,17 @@ class LicenseKey extends Model
     protected function casts(): array
     {
         return [
-            'status'           => LicenseStatus::class,
-            'allowed_domains'  => 'array',
-            'meta'             => 'array',
+            'status' => LicenseStatus::class,
+            'allowed_domains' => 'array',
+            'meta' => 'array',
             'is_product_active' => 'boolean',
-            'activated_at'     => 'datetime',
-            'deactivated_at'   => 'datetime',
-            'expires_at'       => 'datetime',
+            'activated_at' => 'datetime',
+            'deactivated_at' => 'datetime',
+            'expires_at' => 'datetime',
             'last_verified_at' => 'datetime',
-            'force_logout_at'  => 'datetime',
-            'suspended_at'     => 'datetime',
-            'revoked_at'       => 'datetime',
+            'force_logout_at' => 'datetime',
+            'suspended_at' => 'datetime',
+            'revoked_at' => 'datetime',
         ];
     }
 
@@ -67,22 +68,22 @@ class LicenseKey extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function apiLogs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function apiLogs(): HasMany
     {
         return $this->hasMany(LicenseApiLog::class);
     }
 
-    public function histories(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function histories(): HasMany
     {
         return $this->hasMany(LicenseHistory::class);
     }
 
-    public function domainResetRequests(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function domainResetRequests(): HasMany
     {
         return $this->hasMany(LicenseDomainResetRequest::class);
     }
 
-    public function installations(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function installations(): HasMany
     {
         return $this->hasMany(LicenseInstallation::class);
     }

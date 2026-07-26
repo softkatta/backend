@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignUuid('tenant_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('product_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('plan_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('plan_id')->nullable()->constrained()->nullOnDelete();
             $table->string('status')->default('pending');
             $table->timestamp('starts_at')->nullable();
             $table->timestamp('ends_at')->nullable();

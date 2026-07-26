@@ -4,14 +4,12 @@ namespace App\Http\Controllers\Api\Public;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\User;
-use App\Http\Controllers\Api\Public\AuthSecurityController;
 use App\Models\WebauthnCredential;
 use App\Services\EmailOtpService;
 use App\Services\SecurityService;
 use App\Services\WebAuthnService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use lbuchs\WebAuthn\WebAuthnException;
 

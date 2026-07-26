@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Enums\UserRole;
 use App\Models\CompanyRole;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
 final class AdminStaffDirectory
@@ -16,7 +17,7 @@ final class AdminStaffDirectory
     ];
 
     /**
-     * @param  Builder<\App\Models\User>  $query
+     * @param  Builder<User>  $query
      */
     public static function applyScope(Builder $query): void
     {
@@ -37,7 +38,7 @@ final class AdminStaffDirectory
     }
 
     /**
-     * @param  Builder<\App\Models\User>  $query
+     * @param  Builder<User>  $query
      */
     public static function applyRoleFilter(Builder $query, string $staffRole): void
     {

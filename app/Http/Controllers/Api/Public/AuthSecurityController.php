@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers\Api\Public;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\LoginLog;
 use App\Models\User;
+use App\Services\AuthTokenService;
 use App\Services\CompanyRoleMenuService;
 use App\Services\EmailOtpService;
-use App\Services\RecoveryCodeService;
-use App\Services\AuthTokenService;
-use App\Services\SecurityService;
 use App\Services\MailTemplateService;
+use App\Services\RecoveryCodeService;
+use App\Services\SecurityService;
 use App\Services\SmtpMailService;
 use App\Services\TrustedDeviceService;
 use App\Services\TwoFactorService;
@@ -369,7 +370,7 @@ class AuthSecurityController extends BaseApiController
     {
         $security = app(SecurityService::class);
         $nameParts = preg_split('/\s+/', trim($user->name), 2) ?: ['', ''];
-        $role = $user->role instanceof \App\Enums\UserRole ? $user->role->value : (string) $user->role;
+        $role = $user->role instanceof UserRole ? $user->role->value : (string) $user->role;
 
         $permissions = $user->getAllPermissions()->pluck('name')->values()->all();
         $companyRole = $user->employeeProfile?->companyRole;

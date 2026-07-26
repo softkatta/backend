@@ -17,8 +17,7 @@ class EmployeeAccountService
         private readonly MailTemplateService $templates,
         private readonly IntegrationCredentialService $integrations,
         private readonly EmployeeRoleService $employeeRoles,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{

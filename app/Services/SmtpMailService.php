@@ -10,8 +10,7 @@ class SmtpMailService
 {
     public function __construct(
         private readonly MailTemplateService $templates,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{host: string, port: int, username: string, password: string, encryption: ?string, from_address: string, from_name: string}|null
@@ -305,7 +304,7 @@ class SmtpMailService
         });
     }
 
-    public function formatFailureMessage(\Throwable $e): string
+    public function formatFailureMessage(Throwable $e): string
     {
         $message = $e->getMessage();
 

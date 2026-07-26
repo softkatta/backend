@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\InvoiceStatus;
 use App\Enums\LicenseStatus;
 use App\Enums\SubscriptionStatus;
+use App\Exceptions\TenantDomainsRequiredException;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Subscription;
@@ -115,7 +116,7 @@ class SubscriptionRenewalService
         } else {
             try {
                 $this->licenseService->generateForSubscription($subscription->fresh());
-            } catch (\App\Exceptions\TenantDomainsRequiredException) {
+            } catch (TenantDomainsRequiredException) {
                 // Renewal payment succeeded; license waits until SoftKatta Admin domains are assigned.
             }
         }

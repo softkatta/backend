@@ -67,7 +67,7 @@ class LicenseController extends BaseApiController
                 $request->ip(),
                 $request->user()->id
             );
-        } catch (\InvalidArgumentException $exception) {
+        } catch (InvalidArgumentException $exception) {
             return $this->error($exception->getMessage(), 422);
         }
 

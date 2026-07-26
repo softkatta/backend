@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Http\Controllers\Api\BaseApiController;
 use App\Enums\NotificationChannel;
+use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\NotificationService;

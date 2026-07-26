@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\ChatbotFaq;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\ChatbotFaq|array<string, mixed> */
+/** @mixin ChatbotFaq|array<string, mixed> */
 class ChatbotFaqResource extends JsonResource
 {
     /**

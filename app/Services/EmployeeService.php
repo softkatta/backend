@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeExitRecord;
 use App\Models\JobApplication;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -20,8 +21,7 @@ class EmployeeService
         private readonly HrStorageService $storage,
         private readonly EmployeeAccountService $accounts,
         private readonly EmployeeDocumentMailService $documentMail,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -59,7 +59,7 @@ class EmployeeService
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{employee: Employee, portal: array{user: \App\Models\User, temporary_password: string|null}}
+     * @return array{employee: Employee, portal: array{user: User, temporary_password: string|null}}
      */
     public function createFromApplication(JobApplication $application, array $data): array
     {

@@ -33,14 +33,14 @@ class RazorpayGateway extends AbstractPaymentGateway
         }
 
         $response = $client->post('https://api.razorpay.com/v1/orders', [
-                'amount' => $amountPaise,
-                'currency' => 'INR',
-                'receipt' => $order->order_number,
-                'notes' => [
-                    'order_id' => (string) $order->id,
-                    'order_number' => $order->order_number,
-                ],
-            ]);
+            'amount' => $amountPaise,
+            'currency' => 'INR',
+            'receipt' => $order->order_number,
+            'notes' => [
+                'order_id' => (string) $order->id,
+                'order_number' => $order->order_number,
+            ],
+        ]);
 
         if (! $response->successful()) {
             throw new RuntimeException('Razorpay order creation failed: '.$response->body());

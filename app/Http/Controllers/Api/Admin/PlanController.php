@@ -6,11 +6,11 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\StorePlanRequest;
 use App\Models\Plan;
 use App\Models\Product;
-use App\Services\LicenseService;
 use App\Models\User;
-use Illuminate\Support\Facades\Auth;
+use App\Services\LicenseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class PlanController extends BaseApiController

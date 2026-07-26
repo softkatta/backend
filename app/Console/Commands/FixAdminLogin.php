@@ -14,13 +14,14 @@ class FixAdminLogin extends Command
     public function handle(): int
     {
         $admin = User::where('email', 'admin@softkatta.com')->first();
-        if (!$admin) {
+        if (! $admin) {
             $this->error('Admin user not found!');
+
             return 1;
         }
 
         $this->info('Fixing admin login...');
-        $this->line('User: ' . $admin->name . ' (' . $admin->email . ')');
+        $this->line('User: '.$admin->name.' ('.$admin->email.')');
 
         // Disable all 2FA methods on the admin user
         $admin->update([

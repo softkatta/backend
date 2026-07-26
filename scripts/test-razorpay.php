@@ -1,12 +1,16 @@
 <?php
 
+use App\Models\Order;
+use App\Services\Payment\RazorpayGateway;
+use Illuminate\Contracts\Console\Kernel;
+
 require __DIR__.'/../vendor/autoload.php';
 
 $app = require __DIR__.'/../bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app->make(Kernel::class)->bootstrap();
 
-$order = App\Models\Order::withoutGlobalScopes()->latest('id')->first();
-$gateway = new App\Services\Payment\RazorpayGateway();
+$order = Order::withoutGlobalScopes()->latest('id')->first();
+$gateway = new RazorpayGateway;
 $result = $gateway->initiatePayment($order);
 
 echo json_encode([

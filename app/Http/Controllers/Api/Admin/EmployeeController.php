@@ -6,11 +6,11 @@ use App\Enums\EmployeeDocumentCategory;
 use App\Enums\EmployeeDocumentStage;
 use App\Enums\EmployeeExitStatus;
 use App\Enums\EmployeeStatus;
+use App\Enums\UserRole;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\StoreEmployeeRequest;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
-use App\Models\EmployeeExitRecord;
 use App\Services\EmployeeAccountService;
 use App\Services\EmployeeIdCardService;
 use App\Services\EmployeeService;
@@ -100,7 +100,7 @@ class EmployeeController extends BaseApiController
 
     public function destroy(Employee $employee, EmployeeService $service, Request $request): JsonResponse
     {
-        if ($request->user()?->role === \App\Enums\UserRole::HrManager) {
+        if ($request->user()?->role === UserRole::HrManager) {
             return $this->error('Only super admin can delete employees.', 403);
         }
 

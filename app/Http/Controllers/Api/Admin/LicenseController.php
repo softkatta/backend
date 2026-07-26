@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Exceptions\TenantDomainsRequiredException;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\LicenseApiLog;
 use App\Models\LicenseHistory;
@@ -31,9 +32,9 @@ class LicenseController extends BaseApiController
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search): void {
                 $q->where('license_key', 'like', "%{$search}%")
-                  ->orWhere('allowed_domains', 'like', "%{$search}%")
-                  ->orWhereHas('user', fn ($u) => $u->where('email', 'like', "%{$search}%")
-                      ->orWhere('name', 'like', "%{$search}%"));
+                    ->orWhere('allowed_domains', 'like', "%{$search}%")
+                    ->orWhereHas('user', fn ($u) => $u->where('email', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%"));
             });
         }
 
@@ -75,7 +76,7 @@ class LicenseController extends BaseApiController
             'subscription_id' => ['required', 'exists:subscriptions,id'],
             'allowed_domains' => ['nullable', 'array'],
             'allowed_domains.*' => ['string', 'max:255'],
-            'max_devices'     => ['nullable', 'integer', 'min:1', 'max:100'],
+            'max_devices' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $subscription = Subscription::findOrFail($validated['subscription_id']);
@@ -86,7 +87,7 @@ class LicenseController extends BaseApiController
 
         try {
             $license = $this->licenseService->generateForSubscription($subscription);
-        } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
+        } catch (TenantDomainsRequiredException $e) {
             return $this->error($e->getMessage(), 422);
         }
 
@@ -113,12 +114,12 @@ class LicenseController extends BaseApiController
     public function update(Request $request, LicenseKey $license): JsonResponse
     {
         $validated = $request->validate([
-            'allowed_domains'   => ['nullable', 'array'],
+            'allowed_domains' => ['nullable', 'array'],
             'allowed_domains.*' => ['string', 'max:255'],
-            'max_devices'       => ['nullable', 'integer', 'min:1', 'max:100'],
-            'expires_at'        => ['nullable', 'date'],
-            'extra_max_users'   => ['nullable', 'integer', 'min:0', 'max:100000'],
-            'extra_max_students'=> ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'max_devices' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'expires_at' => ['nullable', 'date'],
+            'extra_max_users' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'extra_max_students' => ['nullable', 'integer', 'min:0', 'max:1000000'],
         ]);
 
         $meta = is_array($license->meta) ? $license->meta : [];

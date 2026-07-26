@@ -94,6 +94,6 @@ class AdminSubscriptionTrialTest extends TestCase
         ]);
 
         $this->assertSame(0, Invoice::query()->where('subscription_id', $subscriptionId)->count());
-        $this->assertSame(0, Subscription::count() - 1 + 1); // force at least one assertion path remains valid
+        $this->assertSame(1, Subscription::count());
     }
 }

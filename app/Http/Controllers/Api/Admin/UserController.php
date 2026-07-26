@@ -10,6 +10,7 @@ use App\Services\EmployeeService;
 use App\Services\SecurityService;
 use App\Services\TenantService;
 use App\Support\AdminStaffDirectory;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -288,8 +289,8 @@ class UserController extends BaseApiController
     }
 
     /**
-     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, User>  $paginator
-     * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, User>
+     * @param  LengthAwarePaginator<int, User>  $paginator
+     * @return LengthAwarePaginator<int, User>
      */
     private function paginateWithLoginDetails(Request $request, $paginator)
     {
@@ -318,7 +319,7 @@ class UserController extends BaseApiController
     }
 
     /**
-     * @param  Builder<\App\Models\User>  $query
+     * @param  Builder<User>  $query
      */
     private function applyCustomerWorkspaceScope(Request $request, $query, SecurityService $security): void
     {

@@ -6,6 +6,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HrStorageService
 {
@@ -64,7 +65,7 @@ class HrStorageService
         Storage::disk('local')->deleteDirectory("hr/employees/{$employeeId}");
     }
 
-    public function downloadResponse(string $path, string $originalName, ?string $mimeType = null): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function downloadResponse(string $path, string $originalName, ?string $mimeType = null): StreamedResponse
     {
         abort_unless(Storage::disk('local')->exists($path), 404);
 

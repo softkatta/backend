@@ -8,8 +8,7 @@ class MailTemplateService
 {
     public function __construct(
         private readonly InvoiceProfileService $profile,
-    ) {
-    }
+    ) {}
 
     public function displayName(): string
     {
@@ -95,5 +94,4 @@ class MailTemplateService
             'messageHtml' => $messageHtml,
         ])->render();
     }
-
 }

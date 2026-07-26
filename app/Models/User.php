@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Enums\UserRole;
+use App\Services\SecurityService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -98,7 +100,7 @@ class User extends Authenticatable
         return $this->role === UserRole::HrManager;
     }
 
-    public function employeeProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function employeeProfile(): HasOne
     {
         return $this->hasOne(Employee::class);
     }
@@ -234,8 +236,8 @@ class User extends Authenticatable
      */
     public function availableTwoFactorMethods(): array
     {
-        /** @var \App\Services\SecurityService $security */
-        $security = app(\App\Services\SecurityService::class);
+        /** @var SecurityService $security */
+        $security = app(SecurityService::class);
 
         $methods = [];
 

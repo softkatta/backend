@@ -7,16 +7,20 @@ use App\Enums\NotificationChannel;
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
+use App\Exceptions\TenantDomainsRequiredException;
 use App\Models\Coupon;
 use App\Models\Invoice;
+use App\Models\LicenseKey;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\Subscription;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -38,7 +42,7 @@ class PurchaseService
      * Full purchase flow: account, tenant, subscription, invoice, notifications.
      *
      * @param  array<string, mixed>  $userData
-     * @return array{user: User, tenant: \App\Models\Tenant, subscription: Subscription, order: Order, invoice: Invoice}
+     * @return array{user: User, tenant: Tenant, subscription: Subscription, order: Order, invoice: Invoice}
      */
     public function purchase(Product $product, Plan $plan, array $userData, ?string $gateway = null): array
     {
@@ -130,7 +134,7 @@ class PurchaseService
         });
     }
 
-    public function startTrialForExistingUser(User $user, Product $product, Plan $plan): array
+    public function startTrialForExistingUser(User $user, Product $product, ?Plan $plan = null): array
     {
         return DB::transaction(function () use ($user, $product, $plan) {
             if (! $user->tenant_id) {
@@ -143,14 +147,14 @@ class PurchaseService
             $user->refresh();
 
             $startsAt = now();
-            $trialDays = (int) ($plan->trial_days ?? ($product->has_free_trial ? $product->trial_days : 0));
+            $trialDays = max(1, (int) ($product->trial_days ?: $plan?->trial_days ?: 14));
             $trialEndsAt = $trialDays > 0 ? $startsAt->copy()->addDays($trialDays) : null;
 
             $subscription = Subscription::create([
                 'tenant_id' => $user->tenant_id,
                 'user_id' => $user->id,
                 'product_id' => $product->id,
-                'plan_id' => $plan->id,
+                'plan_id' => $plan?->id,
                 'status' => SubscriptionStatus::Trial,
                 'starts_at' => $startsAt,
                 'ends_at' => null,
@@ -468,7 +472,7 @@ class PurchaseService
         if ($this->extraSeatsPurchaseService->isExtraSeatsInvoice($invoice)) {
             $licenseId = (int) (($invoice->billing_details ?? [])['license_id'] ?? 0);
             $license = $licenseId > 0
-                ? \App\Models\LicenseKey::query()->find($licenseId)
+                ? LicenseKey::query()->find($licenseId)
                 : $subscription->licenseKey;
             if (! $license) {
                 throw new \RuntimeException('Paid extra-seats invoice is missing a license to update.');
@@ -529,8 +533,8 @@ class PurchaseService
 
         try {
             $this->licenseService->generateForSubscription($subscription);
-        } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
-            \Illuminate\Support\Facades\Log::info('License deferred until SoftKatta Admin assigns tenant domains', [
+        } catch (TenantDomainsRequiredException $e) {
+            Log::info('License deferred until SoftKatta Admin assigns tenant domains', [
                 'subscription_id' => $subscription->id,
                 'user_id' => $subscription->user_id,
                 'message' => $e->getMessage(),
@@ -541,7 +545,7 @@ class PurchaseService
     protected function createSubscription(User $user, Product $product, Plan $plan, bool $requiresPayment): Subscription
     {
         $startsAt = now();
-        
+
         // Trial duration: use Plan.trial_days if available, else Product.trial_days
         $trialDays = $plan->trial_days ?? ($product->has_free_trial ? $product->trial_days : 0);
         $trialEndsAt = $trialDays > 0 ? $startsAt->copy()->addDays($trialDays) : null;
@@ -563,7 +567,7 @@ class PurchaseService
             'tenant_id' => $user->tenant_id,
             'user_id' => $user->id,
             'product_id' => $product->id,
-            'plan_id' => $plan->id,
+            'plan_id' => $plan?->id,
             'status' => $status,
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
@@ -592,7 +596,7 @@ class PurchaseService
             'tenant_id' => $user->tenant_id,
             'user_id' => $user->id,
             'product_id' => $product->id,
-            'plan_id' => $plan->id,
+            'plan_id' => $plan?->id,
             'coupon_id' => $coupon?->id,
             'coupon_code' => $coupon?->code,
             'order_number' => 'SK-ORD-'.strtoupper(Str::random(10)),

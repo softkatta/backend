@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ChatbotFaq;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class ChatbotMessageService
 {
@@ -649,7 +650,7 @@ class ChatbotMessageService
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, ChatbotFaq>  $faqs
+     * @param  Collection<int, ChatbotFaq>  $faqs
      * @return array<string, mixed>
      */
     private function buildFaqBrowseResponse(

@@ -15,8 +15,7 @@ class ReviewController extends BaseApiController
 {
     public function __construct(
         private readonly ReviewService $reviews,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): JsonResponse
     {

@@ -9,6 +9,7 @@ use App\Models\Review;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -25,8 +26,7 @@ class ReviewService
     public function __construct(
         private readonly NotificationService $notifications,
         private readonly RecaptchaService $recaptcha,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -482,7 +482,7 @@ class ReviewService
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Review>  $query
+     * @param  Builder<Review>  $query
      * @param  array<string, mixed>  $filters
      */
     private function applyFilters($query, array $filters): void
@@ -524,7 +524,7 @@ class ReviewService
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Review>  $query
+     * @param  Builder<Review>  $query
      * @param  array<string, mixed>  $filters
      */
     private function applyPublicFilters($query, array $filters): void

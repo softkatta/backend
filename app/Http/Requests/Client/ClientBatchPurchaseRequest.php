@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Client;
 
+use App\Models\Plan;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class ClientBatchPurchaseRequest extends FormRequest
 {
@@ -37,7 +37,7 @@ class ClientBatchPurchaseRequest extends FormRequest
                     continue;
                 }
 
-                $exists = \App\Models\Plan::query()
+                $exists = Plan::query()
                     ->where('id', $planId)
                     ->where('product_id', $productId)
                     ->exists();

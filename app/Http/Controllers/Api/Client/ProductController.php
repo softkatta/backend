@@ -101,14 +101,9 @@ class ProductController extends BaseApiController
             return $this->error('A free trial has already been used for your account.', 422);
         }
 
-        // Pick a default active plan for the product
-        $plan = $product->plans()->where('is_active', true)->orderBy('sort_order')->first();
-
-        if (! $plan) {
-            return $this->error('No active plan available for trial.', 422);
-        }
-
-        $result = $purchaseService->startTrialForExistingUser($request->user(), $product, $plan);
+        // A trial belongs to the product, not to a paid plan. A plan is selected
+        // only when the customer converts after the trial ends.
+        $result = $purchaseService->startTrialForExistingUser($request->user(), $product);
 
         return $this->success($result, 'Free trial started. You can use the product for the trial period.');
     }

@@ -30,14 +30,14 @@ class Plan extends Model
     protected function casts(): array
     {
         return [
-            'price'         => 'decimal:2',
-            'discount'      => 'decimal:2',
-            'gst_rate'      => 'decimal:2',
+            'price' => 'decimal:2',
+            'discount' => 'decimal:2',
+            'gst_rate' => 'decimal:2',
             'billing_cycle' => BillingCycle::class,
-            'features'      => 'array',
-            'limits'        => 'array',
-            'is_popular'    => 'boolean',
-            'is_active'     => 'boolean',
+            'features' => 'array',
+            'limits' => 'array',
+            'is_popular' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 

@@ -14,6 +14,7 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\CompanyApiAuthService;
+use App\Services\LicenseService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -85,6 +86,15 @@ class CompanyApiLicenseTest extends TestCase
             'ends_at' => now()->addYear(),
         ]);
 
+        $tenant->update(['settings' => [
+            'subscription_domains' => [
+                (string) $subscription->id => [
+                    'product_id' => $product->id,
+                    'frontend_domain' => 'study.local',
+                    'backend_domain' => 'study.local',
+                ],
+            ],
+        ]]);
         $this->license = LicenseKey::create([
             'subscription_id' => $subscription->id,
             'product_id' => $product->id,
@@ -299,7 +309,7 @@ class CompanyApiLicenseTest extends TestCase
         $installationId = $activate->json('data.installation_id');
         $installToken = $activate->json('data.install_token');
 
-        app(\App\Services\LicenseService::class)->suspend($this->license->fresh());
+        app(LicenseService::class)->suspend($this->license->fresh());
 
         $this->assertTrue(
             LicenseInstallation::query()
@@ -341,7 +351,7 @@ class CompanyApiLicenseTest extends TestCase
         $installationId = $activate->json('data.installation_id');
         $installToken = $activate->json('data.install_token');
 
-        $licenses = app(\App\Services\LicenseService::class);
+        $licenses = app(LicenseService::class);
         $licenses->suspend($this->license->fresh());
         $licenses->activate($this->license->fresh());
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\EmployeeCalendarEvent;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class CalendarEventController extends BaseApiController
                 });
         } elseif ($request->filled('month') && preg_match('/^\d{4}-\d{2}$/', $request->string('month')->toString())) {
             $month = $request->string('month')->toString();
-            $start = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+            $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
             $end = $start->copy()->endOfMonth();
             $query->where('starts_at', '<=', $end)
                 ->where(function ($q) use ($start) {

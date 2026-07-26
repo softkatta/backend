@@ -4,15 +4,15 @@ namespace App\Services;
 
 use App\Enums\LicenseStatus;
 use App\Enums\SubscriptionStatus;
+use App\Exceptions\TenantDomainsRequiredException;
 use App\Models\LicenseHistory;
 use App\Models\LicenseInstallation;
 use App\Models\LicenseKey;
+use App\Models\Plan;
 use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use Illuminate\Support\Str;
-use App\Services\NotificationService;
-use App\Enums\NotificationChannel;
 
 class LicenseService
 {
@@ -131,7 +131,7 @@ class LicenseService
      *
      * Requires SoftKatta Admin → Tenants frontend + backend domains for the customer workspace.
      *
-     * @throws \App\Exceptions\TenantDomainsRequiredException
+     * @throws TenantDomainsRequiredException
      */
     public function generateForSubscription(Subscription $subscription): LicenseKey
     {
@@ -145,7 +145,7 @@ class LicenseService
         $product = $subscription->product;
 
         if (! $tenant || ! $tenant->hasDeployDomains($product, $subscription)) {
-            throw new \App\Exceptions\TenantDomainsRequiredException(
+            throw new TenantDomainsRequiredException(
                 'Assign SoftKatta Admin → Tenants domains for this subscription before generating a license or running project setup.'
             );
         }
@@ -293,7 +293,7 @@ class LicenseService
                         $user,
                         'license.promoted',
                         'License activated',
-                        "Your license ({$license->license_key}) is now active for the domains: " . implode(', ', $domains),
+                        "Your license ({$license->license_key}) is now active for the domains: ".implode(', ', $domains),
                         $channels,
                         ['license_id' => $license->id, 'domains' => $domains],
                     );
@@ -365,7 +365,7 @@ class LicenseService
                 try {
                     $this->generateForSubscription($subscription);
                     $created++;
-                } catch (\App\Exceptions\TenantDomainsRequiredException) {
+                } catch (TenantDomainsRequiredException) {
                     // ignore
                 }
             });
@@ -393,7 +393,7 @@ class LicenseService
         }
 
         if ($license->status !== LicenseStatus::Active) {
-            return $this->errorResponse($license->status->value, 'License is ' . $license->status->value . '.');
+            return $this->errorResponse($license->status->value, 'License is '.$license->status->value.'.');
         }
 
         // Domain check
@@ -668,12 +668,12 @@ class LicenseService
     public function suspend(LicenseKey $license, string $reason = '', ?int $actorId = null): LicenseKey
     {
         $license->update([
-            'status'           => LicenseStatus::Suspended,
-            'suspended_at'     => now(),
+            'status' => LicenseStatus::Suspended,
+            'suspended_at' => now(),
             // Do not set force_logout_at — that maps to INVALID_INSTALL_TOKEN and breaks
             // Admin Activate auto-recovery. Keep install tokens; verify returns SUSPENDED_LICENSE.
-            'is_product_active'=> false,
-            'deactivated_at'   => now(),
+            'is_product_active' => false,
+            'deactivated_at' => now(),
         ]);
         $this->recordHistory($license, 'suspended', array_filter(['reason' => $reason]), $actorId);
         // Keep install tokens. Company API verify returns SUSPENDED_LICENSE immediately;
@@ -686,12 +686,12 @@ class LicenseService
     public function revoke(LicenseKey $license, string $reason = '', ?int $actorId = null): LicenseKey
     {
         $license->update([
-            'status'           => LicenseStatus::Revoked,
-            'revoked_at'       => now(),
-            'revoke_reason'    => $reason,
-            'force_logout_at'  => now(),
-            'is_product_active'=> false,
-            'deactivated_at'   => now(),
+            'status' => LicenseStatus::Revoked,
+            'revoked_at' => now(),
+            'revoke_reason' => $reason,
+            'force_logout_at' => now(),
+            'is_product_active' => false,
+            'deactivated_at' => now(),
         ]);
         $this->recordHistory($license, 'revoked', array_filter(['reason' => $reason]), $actorId);
         $this->revokeRemoteAccess($license, $actorId);
@@ -702,13 +702,13 @@ class LicenseService
     public function activate(LicenseKey $license, ?int $actorId = null): LicenseKey
     {
         $license->update([
-            'status'            => LicenseStatus::Active,
-            'activated_at'      => $license->activated_at ?? now(),
-            'suspended_at'      => null,
-            'revoked_at'        => null,
-            'force_logout_at'   => null,
+            'status' => LicenseStatus::Active,
+            'activated_at' => $license->activated_at ?? now(),
+            'suspended_at' => null,
+            'revoked_at' => null,
+            'force_logout_at' => null,
             'is_product_active' => true,
-            'deactivated_at'    => null,
+            'deactivated_at' => null,
         ]);
         $this->recordHistory($license, 'activated', [], $actorId);
 
@@ -858,10 +858,10 @@ class LicenseService
     public function markExpired(LicenseKey $license, ?int $actorId = null): LicenseKey
     {
         $license->update([
-            'status'           => LicenseStatus::Expired,
-            'force_logout_at'  => now(),
-            'is_product_active'=> false,
-            'deactivated_at'   => now(),
+            'status' => LicenseStatus::Expired,
+            'force_logout_at' => now(),
+            'is_product_active' => false,
+            'deactivated_at' => now(),
         ]);
         $this->recordHistory($license, 'expired', [], $actorId);
         $this->revokeRemoteAccess($license, $actorId);
@@ -893,10 +893,10 @@ class LicenseService
 
     private function buildSuccessResponse(LicenseKey $license): array
     {
-        $plan    = $license->subscription?->plan;
+        $plan = $license->subscription?->plan;
         $product = $license->product;
-        $user    = $license->user;
-        $limits  = $plan?->limits ?? [];
+        $user = $license->user;
+        $limits = $plan?->limits ?? [];
 
         // Default modules by product slug if plan has no limits specified
         $modules = $limits['enabled_modules'] ?? $this->defaultModules($product?->slug);
@@ -904,35 +904,35 @@ class LicenseService
         $features = $this->normalizePlanFeatures($plan);
 
         return [
-            'status'          => 'active',
-            'license_key'     => $license->license_key,
-            'expires_at'      => $license->expires_at?->toIso8601String(),
-            'is_lifetime'     => $license->expires_at === null,
-            'product'         => [
-                'id'      => $product?->id,
-                'name'    => $product?->name,
-                'slug'    => $product?->slug,
+            'status' => 'active',
+            'license_key' => $license->license_key,
+            'expires_at' => $license->expires_at?->toIso8601String(),
+            'is_lifetime' => $license->expires_at === null,
+            'product' => [
+                'id' => $product?->id,
+                'name' => $product?->name,
+                'slug' => $product?->slug,
                 'version' => $product?->meta['current_version'] ?? null,
             ],
-            'plan'            => [
-                'id'            => $plan?->id,
-                'name'          => $plan?->name,
+            'plan' => [
+                'id' => $plan?->id,
+                'name' => $plan?->name,
                 'billing_cycle' => $plan?->billing_cycle?->value,
-                'is_trial'      => $license->subscription?->status === SubscriptionStatus::Trial,
+                'is_trial' => $license->subscription?->status === SubscriptionStatus::Trial,
             ],
-            'limits'          => $this->buildLimitsPayload($license, $limits),
+            'limits' => $this->buildLimitsPayload($license, $limits),
             'enabled_modules' => $modules,
-            'features'        => $features,
-            'customer'        => [
-                'id'    => $user?->id,
-                'name'  => $user?->name,
+            'features' => $features,
+            'customer' => [
+                'id' => $user?->id,
+                'name' => $user?->name,
                 'email' => $user?->email,
             ],
-            'subscription'    => [
-                'id'         => $license->subscription?->id,
-                'status'     => $license->subscription?->status?->value,
-                'starts_at'  => $license->subscription?->starts_at?->toIso8601String(),
-                'ends_at'    => $license->subscription?->ends_at?->toIso8601String(),
+            'subscription' => [
+                'id' => $license->subscription?->id,
+                'status' => $license->subscription?->status?->value,
+                'starts_at' => $license->subscription?->starts_at?->toIso8601String(),
+                'ends_at' => $license->subscription?->ends_at?->toIso8601String(),
             ],
             'allowed_domains' => $license->allowed_domains ?? [],
         ];
@@ -943,7 +943,7 @@ class LicenseService
         return ['status' => $status, 'message' => $message];
     }
 
-    private function normalizePlanFeatures(?\App\Models\Plan $plan): array
+    private function normalizePlanFeatures(?Plan $plan): array
     {
         if (! $plan) {
             return [];

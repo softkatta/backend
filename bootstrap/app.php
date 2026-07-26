@@ -1,14 +1,21 @@
 <?php
 
+use App\Http\Middleware\EmployeePortalMenuMiddleware;
+use App\Http\Middleware\EnforceSecurityPolicy;
+use App\Http\Middleware\EnforceSessionTimeout;
 use App\Http\Middleware\EnsureSiteNotInMaintenance;
-use App\Http\Middleware\ForceCorsOnErrors;
 use App\Http\Middleware\EnsureTenantAccess;
+use App\Http\Middleware\ForceCorsOnErrors;
+use App\Http\Middleware\PermissionMiddleware;
 use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\VerifyCompanyApiSignature;
+use App\Http\Middleware\VerifyProductApiSignature;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\HandleCors;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -25,18 +32,18 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => RoleMiddleware::class,
-            'permission' => \App\Http\Middleware\PermissionMiddleware::class,
-            'employee.portal.menu' => \App\Http\Middleware\EmployeePortalMenuMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'employee.portal.menu' => EmployeePortalMenuMiddleware::class,
             'tenant' => EnsureTenantAccess::class,
             'maintenance' => EnsureSiteNotInMaintenance::class,
-            'security.policy' => \App\Http\Middleware\EnforceSecurityPolicy::class,
-            'session.timeout' => \App\Http\Middleware\EnforceSessionTimeout::class,
-            'product.api' => \App\Http\Middleware\VerifyProductApiSignature::class,
-            'company.api' => \App\Http\Middleware\VerifyCompanyApiSignature::class,
+            'security.policy' => EnforceSecurityPolicy::class,
+            'session.timeout' => EnforceSessionTimeout::class,
+            'product.api' => VerifyProductApiSignature::class,
+            'company.api' => VerifyCompanyApiSignature::class,
         ]);
 
         $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            EnsureFrontendRequestsAreStateful::class,
         ]);
     })
     ->withSchedule(function (Schedule $schedule): void {

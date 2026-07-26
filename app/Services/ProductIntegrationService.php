@@ -163,7 +163,7 @@ CURL;
             'public_api_key' => $integration->public_api_key,
             'authentication' => [
                 'method' => 'Bearer Token + HMAC SHA256 Signature (Company API)',
-                'signature_payload' => "METHOD\\nPATH\\nTIMESTAMP\\nNONCE\\nPRODUCT_SLUG\\nDOMAIN\\nPRODUCT_VERSION\\nINSTALLATION_ID\\nSERVER_FINGERPRINT\\nSHA256(raw_body)",
+                'signature_payload' => 'METHOD\\nPATH\\nTIMESTAMP\\nNONCE\\nPRODUCT_SLUG\\nDOMAIN\\nPRODUCT_VERSION\\nINSTALLATION_ID\\nSERVER_FINGERPRINT\\nSHA256(raw_body)',
                 'request_window_seconds' => (int) config('softkatta.company_timestamp_skew', 300),
                 'preferred_client' => 'softkatta/licensing (Study Point install wizard)',
             ],

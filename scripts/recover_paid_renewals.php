@@ -3,13 +3,13 @@
 declare(strict_types=1);
 
 use App\Models\Invoice;
-use App\Models\Subscription;
 use App\Services\PurchaseService;
+use Illuminate\Contracts\Console\Kernel;
 
 require __DIR__.'/../vendor/autoload.php';
 
 $app = require __DIR__.'/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 /** @var PurchaseService $purchase */
@@ -32,13 +32,15 @@ Invoice::withoutGlobalScopes()
         foreach ($invoices as $invoice) {
             $details = is_array($invoice->billing_details) ? $invoice->billing_details : [];
 
-            if (!empty($details['renewal_applied_at'])) {
+            if (! empty($details['renewal_applied_at'])) {
                 $alreadyApplied++;
+
                 continue;
             }
 
-            if (!$invoice->order) {
+            if (! $invoice->order) {
                 $skippedNoOrder++;
+
                 continue;
             }
 
@@ -65,13 +67,15 @@ Invoice::withoutGlobalScopes()
         foreach ($invoices as $invoice) {
             $details = is_array($invoice->billing_details) ? $invoice->billing_details : [];
 
-            if (!empty($details['renewal_applied_at'])) {
+            if (! empty($details['renewal_applied_at'])) {
                 $alreadyApplied++;
+
                 continue;
             }
 
-            if (!$invoice->order || !$invoice->subscription) {
+            if (! $invoice->order || ! $invoice->subscription) {
                 $skippedNoOrder++;
+
                 continue;
             }
 

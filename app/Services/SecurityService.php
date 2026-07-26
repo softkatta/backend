@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class SecurityService
 {
@@ -364,7 +365,7 @@ class SecurityService
         return max(0, (int) $raw);
     }
 
-    public function isTokenIdleExpired(\Laravel\Sanctum\PersonalAccessToken $token): bool
+    public function isTokenIdleExpired(PersonalAccessToken $token): bool
     {
         $timeout = $this->sessionTimeoutMinutes();
 

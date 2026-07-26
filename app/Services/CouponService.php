@@ -184,6 +184,7 @@ class CouponService
         foreach ($indexes as $index) {
             if ($index === $lastIndex) {
                 $lineDiscounts[$index] = round($remaining, 2);
+
                 continue;
             }
 

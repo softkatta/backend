@@ -6,7 +6,6 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Plan;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 /**
  * Central Product/Plan catalogue — public, used by SoftKatta products to
@@ -25,12 +24,12 @@ class ProductController extends BaseApiController
             ->orderBy('sort_order')
             ->get()
             ->map(fn (Product $p) => [
-                'id'          => $p->id,
-                'name'        => $p->name,
-                'slug'        => $p->slug,
+                'id' => $p->id,
+                'name' => $p->name,
+                'slug' => $p->slug,
                 'description' => $p->description,
-                'logo'        => $p->logo,
-                'plans'       => $p->plans->map(fn (Plan $plan) => $this->formatPlan($plan)),
+                'logo' => $p->logo,
+                'plans' => $p->plans->map(fn (Plan $plan) => $this->formatPlan($plan)),
             ]);
 
         return $this->success($products);
@@ -60,20 +59,20 @@ class ProductController extends BaseApiController
     private function formatPlan(Plan $plan): array
     {
         return [
-            'id'            => $plan->id,
-            'name'          => $plan->name,
-            'slug'          => $plan->slug,
-            'description'   => $plan->description,
-            'price'         => $plan->price,
-            'discount'      => $plan->discount,
-            'gst_rate'      => $plan->gst_rate,
-            'currency'      => $plan->currency,
-            'trial_days'    => $plan->trial_days,
+            'id' => $plan->id,
+            'name' => $plan->name,
+            'slug' => $plan->slug,
+            'description' => $plan->description,
+            'price' => $plan->price,
+            'discount' => $plan->discount,
+            'gst_rate' => $plan->gst_rate,
+            'currency' => $plan->currency,
+            'trial_days' => $plan->trial_days,
             'billing_cycle' => $plan->billing_cycle->value,
             'billing_label' => $plan->billing_cycle->label(),
-            'features'      => $plan->features ?? [],
-            'limits'        => $plan->limits ?? [],
-            'is_popular'    => $plan->is_popular,
+            'features' => $plan->features ?? [],
+            'limits' => $plan->limits ?? [],
+            'is_popular' => $plan->is_popular,
         ];
     }
 }

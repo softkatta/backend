@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
+use App\Exceptions\TenantDomainsRequiredException;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Models\Plan;
 use App\Models\Product;
@@ -170,7 +171,7 @@ class SubscriptionController extends BaseApiController
         if (in_array($subscription->status, [SubscriptionStatus::Active, SubscriptionStatus::Trial])) {
             try {
                 app(LicenseService::class)->generateForSubscription($subscription);
-            } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
+            } catch (TenantDomainsRequiredException $e) {
                 return $this->success(
                     $subscription->load(['user', 'product', 'plan', 'tenant', 'invoices']),
                     $isTrialSubscription
@@ -320,7 +321,7 @@ class SubscriptionController extends BaseApiController
         );
     }
 
-    public function applyTrial(Request $request, Subscription $subscription, SecurityService $security, \App\Services\LicenseService $licenseService): JsonResponse
+    public function applyTrial(Request $request, Subscription $subscription, SecurityService $security, LicenseService $licenseService): JsonResponse
     {
         $query = Subscription::withoutGlobalScopes();
         $security->applyAdminWorkspaceScope($query, $request);
@@ -335,12 +336,12 @@ class SubscriptionController extends BaseApiController
 
         $scoped->update([
             'trial_ends_at' => $trialEndsAt,
-            'status' => \App\Enums\SubscriptionStatus::Trial->value,
+            'status' => SubscriptionStatus::Trial->value,
         ]);
 
         try {
             $licenseService->generateForSubscription($scoped->fresh());
-        } catch (\App\Exceptions\TenantDomainsRequiredException $e) {
+        } catch (TenantDomainsRequiredException $e) {
             // Ignore license generation failure; subscription created/updated.
         }
 

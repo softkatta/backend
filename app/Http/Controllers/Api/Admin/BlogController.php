@@ -6,7 +6,6 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Admin\StoreBlogRequest;
 use App\Models\Blog;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class BlogController extends BaseApiController

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\InvoiceStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
+use App\Exceptions\TenantDomainsRequiredException;
 use App\Models\Invoice;
 use App\Models\LicenseKey;
 use App\Models\Order;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class BillingAdminService
@@ -69,7 +71,7 @@ class BillingAdminService
                 'user_id' => $user->id,
                 'product_id' => $product->id,
                 'plan_id' => $plan->id,
-                'order_number' => 'SK-ORD-'.strtoupper(\Illuminate\Support\Str::random(10)),
+                'order_number' => 'SK-ORD-'.strtoupper(Str::random(10)),
                 'amount' => $amount,
                 'discount_amount' => 0,
                 'tax_amount' => $taxAmount,
@@ -282,7 +284,7 @@ class BillingAdminService
         if (in_array($subscription->status, [SubscriptionStatus::Active, SubscriptionStatus::Trial], true)) {
             try {
                 app(LicenseService::class)->generateForSubscription($subscription);
-            } catch (\App\Exceptions\TenantDomainsRequiredException) {
+            } catch (TenantDomainsRequiredException) {
                 // Domains must be assigned in SoftKatta Admin → Tenants first.
             }
         }

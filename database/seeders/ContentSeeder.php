@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Exceptions\TenantDomainsRequiredException;
 use App\Models\Faq;
 use App\Models\HeroSlide;
-use App\Models\LicenseKey;
 use App\Models\Product;
 use App\Models\Service;
 use App\Models\Subscription;
@@ -245,13 +245,13 @@ class ContentSeeder extends Seeder
             );
 
             // Create tenant for this customer
-            $tenantSlug = str_replace(' ', '-', strtolower($customerData['company_name'])) . '-' . $user->id;
+            $tenantSlug = str_replace(' ', '-', strtolower($customerData['company_name'])).'-'.$user->id;
             $tenant = Tenant::firstOrCreate(
                 ['owner_id' => $user->id],
                 [
                     'name' => $customerData['company_name'],
                     'slug' => $tenantSlug,
-                    'database_name' => 'softkatta_' . str_pad($user->id, 3, '0', STR_PAD_LEFT),
+                    'database_name' => 'softkatta_'.str_pad($user->id, 3, '0', STR_PAD_LEFT),
                     'status' => 'active',
                     'frontend_domain' => 'app-'.$tenantSlug.'.local',
                     'backend_domain' => 'api-'.$tenantSlug.'.local',
@@ -291,7 +291,7 @@ class ContentSeeder extends Seeder
                     if (! $subscription->licenseKey) {
                         try {
                             $licenseService->generateForSubscription($subscription);
-                        } catch (\App\Exceptions\TenantDomainsRequiredException) {
+                        } catch (TenantDomainsRequiredException) {
                             // Domains must be assigned before license generation.
                         }
                     }

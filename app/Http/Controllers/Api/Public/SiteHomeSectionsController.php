@@ -8,9 +8,7 @@ use Illuminate\Http\JsonResponse;
 
 class SiteHomeSectionsController extends BaseApiController
 {
-    public function __construct(private readonly HomeSectionsService $homeSections)
-    {
-    }
+    public function __construct(private readonly HomeSectionsService $homeSections) {}
 
     public function show(): JsonResponse
     {

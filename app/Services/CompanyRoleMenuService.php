@@ -316,7 +316,7 @@ class CompanyRoleMenuService
     }
 
     /**
-     * @return list<string>|null  null means "no pivot customization"
+     * @return list<string>|null null means "no pivot customization"
      */
     private static function keysFromPivot(CompanyRole $role): ?array
     {

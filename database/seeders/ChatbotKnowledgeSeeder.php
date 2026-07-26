@@ -167,6 +167,7 @@ class ChatbotKnowledgeSeeder extends Seeder
     private function studyPointFaqs(): array
     {
         $base = ['category' => 'products', 'sort_order' => 40];
+
         return [
             array_merge($base, ['question' => 'What is Study Point Management Software?', 'answer' => 'Study Point is an Education ERP for schools and coaching institutes. Manage admissions, students, attendance, batches, fee collection, examinations, results, staff, and reports in one platform.', 'keywords' => 'study point, school erp, coaching, education']),
             array_merge($base, ['question' => 'Who should use Study Point?', 'answer' => 'Schools, coaching classes, training institutes, and educational centers that need student management, attendance, fees, batches, and exam management.', 'keywords' => 'study point, who, suitable, target']),
@@ -181,6 +182,7 @@ class ChatbotKnowledgeSeeder extends Seeder
     private function medicalStoreFaqs(): array
     {
         $base = ['category' => 'products', 'sort_order' => 50];
+
         return [
             array_merge($base, ['question' => 'What is Medical Store Management Software?', 'answer' => 'Complete pharmacy software with GST billing, barcode support, inventory management, stock alerts, purchase & sales, supplier records, and expiry tracking.', 'keywords' => 'medical store, pharmacy, chemist']),
             array_merge($base, ['question' => 'Who should use Medical Store software?', 'answer' => 'Single-store pharmacies, medical stores, and multi-counter pharmacy operations needing billing, inventory, and GST compliance.', 'keywords' => 'medical store who, pharmacy suitable']),
@@ -195,6 +197,7 @@ class ChatbotKnowledgeSeeder extends Seeder
     private function nurserySchoolFaqs(): array
     {
         $base = ['category' => 'products', 'sort_order' => 60];
+
         return [
             array_merge($base, ['question' => 'What is Nursery School Management Software?', 'answer' => 'ERP for nursery and pre-primary schools — admissions, attendance, fee management, parent portal, notifications, and reports.', 'keywords' => 'nursery, preschool, kindergarten']),
             array_merge($base, ['question' => 'Who should use Nursery School software?', 'answer' => 'Nursery schools, pre-primary schools, and early childhood centers needing admissions, fees, attendance, and parent communication.', 'keywords' => 'nursery who, preschool suitable']),
@@ -668,8 +671,8 @@ class ChatbotKnowledgeSeeder extends Seeder
         $email = 'support@softkatta.in';
 
         $mr = [
-            ['SoftKatta Solutions म्हणजे काय?', "SoftKatta ही Talni, Nanded, Maharashtra मधील custom software development company आहे. आम्ही ERP, web apps आणि mobile apps तयार करतो.", 'softkatta, company, माहिती', 'company', 300],
-            ['SoftKatta कोणती उत्पादने देते?', "Study Point Management Software, Medical Store Management Software, Nursery School Management Software आणि Custom Software Development.", 'उत्पादने, products, erp', 'products', 301],
+            ['SoftKatta Solutions म्हणजे काय?', 'SoftKatta ही Talni, Nanded, Maharashtra मधील custom software development company आहे. आम्ही ERP, web apps आणि mobile apps तयार करतो.', 'softkatta, company, माहिती', 'company', 300],
+            ['SoftKatta कोणती उत्पादने देते?', 'Study Point Management Software, Medical Store Management Software, Nursery School Management Software आणि Custom Software Development.', 'उत्पादने, products, erp', 'products', 301],
             ['Study Point software कशासाठी आहे?', 'शाळा, coaching institutes आणि training centers साठी — admissions, attendance, fees, batches, exams.', 'study point, शाळा, coaching', 'products', 302],
             ['Medical Store software किती किंमतीत?', '₹1,999/महिना पासून Starter plan. Professional ₹4,999/महिना. /pricing पहा.', 'medical store, pharmacy, किंमत', 'pricing', 303],
             ['Nursery School software मध्ये काय आहे?', 'Admissions, attendance, fees, parent portal, notifications आणि reports.', 'nursery, preschool', 'products', 304],

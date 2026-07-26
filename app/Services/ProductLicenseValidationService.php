@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\LicenseStatus;
 use App\Enums\SubscriptionStatus;
 use App\Models\LicenseApiLog;
-use App\Models\LicenseHistory;
 use App\Models\LicenseKey;
 use App\Models\ProductIntegration;
 use Illuminate\Http\Request;

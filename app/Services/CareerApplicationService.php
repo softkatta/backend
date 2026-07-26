@@ -20,8 +20,7 @@ class CareerApplicationService
         private readonly HrStorageService $storage,
         private readonly NotificationService $notifications,
         private readonly InvoiceProfileService $profile,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data

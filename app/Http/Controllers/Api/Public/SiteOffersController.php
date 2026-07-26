@@ -27,7 +27,7 @@ class SiteOffersController extends BaseApiController
 
         $active = collect($items)
             ->filter(fn ($item) => is_array($item) && ($item['active'] ?? true))
-            ->filter(function (array $item) use ($now) {
+            ->filter(function (array $item) {
                 try {
                     if (! empty($item['start_date']) && Carbon::parse($item['start_date'])->isFuture()) {
                         return false;

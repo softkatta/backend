@@ -17,8 +17,7 @@ class ReviewController extends BaseApiController
     public function __construct(
         private readonly ReviewService $reviews,
         private readonly RecaptchaService $recaptcha,
-    ) {
-    }
+    ) {}
 
     public function store(StoreReviewRequest $request): JsonResponse
     {

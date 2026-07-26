@@ -291,6 +291,7 @@ class CompanyLicenseService
                 'bound_domain' => $installation->domain,
                 'plan' => $profile['plan'],
                 'modules' => $profile['modules'],
+                'features' => $profile['features'],
                 'limits' => $profile['limits'],
                 'addons' => $profile['addons'],
                 'expires_at' => $profile['expires_at'],

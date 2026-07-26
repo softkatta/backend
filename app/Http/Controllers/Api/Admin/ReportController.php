@@ -7,6 +7,7 @@ use App\Services\ReportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends BaseApiController
 {
@@ -36,7 +37,7 @@ class ReportController extends BaseApiController
         ]);
     }
 
-    public function export(Request $request, ReportService $service): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function export(Request $request, ReportService $service): StreamedResponse
     {
         $from = Carbon::parse($request->input('from', now()->startOfMonth()));
         $to = Carbon::parse($request->input('to', now()->endOfMonth()));

@@ -7,6 +7,7 @@ use App\Enums\LicenseStatus;
 use App\Models\Invoice;
 use App\Models\LicenseKey;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -186,7 +187,7 @@ class ExtraSeatsPurchaseService
      *     total: float
      * }
      */
-    public function quote(\App\Models\Product $product, int $extraUsers, int $extraStudents): array
+    public function quote(Product $product, int $extraUsers, int $extraStudents): array
     {
         $meta = is_array($product->meta) ? $product->meta : [];
         $priceUser = max(0, (float) ($meta['price_per_extra_user'] ?? 0));

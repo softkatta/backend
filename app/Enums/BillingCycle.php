@@ -14,11 +14,11 @@ enum BillingCycle: string
     public function label(): string
     {
         return match ($this) {
-            self::Monthly    => 'Monthly',
-            self::Quarterly  => 'Quarterly',
+            self::Monthly => 'Monthly',
+            self::Quarterly => 'Quarterly',
             self::HalfYearly => 'Half Yearly',
-            self::Yearly     => 'Yearly',
-            self::Lifetime   => 'Lifetime',
+            self::Yearly => 'Yearly',
+            self::Lifetime => 'Lifetime',
             self::Enterprise => 'Enterprise',
         };
     }
@@ -27,11 +27,11 @@ enum BillingCycle: string
     public function months(): ?int
     {
         return match ($this) {
-            self::Monthly    => 1,
-            self::Quarterly  => 3,
+            self::Monthly => 1,
+            self::Quarterly => 3,
             self::HalfYearly => 6,
-            self::Yearly     => 12,
-            self::Lifetime   => null,
+            self::Yearly => 12,
+            self::Lifetime => null,
             self::Enterprise => null,
         };
     }

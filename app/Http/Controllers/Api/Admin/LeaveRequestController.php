@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Enums\AttendanceRecordStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Http\Controllers\Api\BaseApiController;
-use App\Models\AttendanceRecord;
 use App\Models\LeaveRequest;
 use App\Services\EmployeePortalService;
 use Illuminate\Http\JsonResponse;

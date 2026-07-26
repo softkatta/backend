@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Models\EmployeeProject;
 use App\Models\EmployeeTimesheet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -114,7 +115,7 @@ class TimesheetController extends BaseApiController
             return;
         }
 
-        $owns = \App\Models\EmployeeProject::query()
+        $owns = EmployeeProject::query()
             ->where('id', $projectId)
             ->where('employee_id', $employeeId)
             ->exists();

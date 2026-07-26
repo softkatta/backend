@@ -15,8 +15,7 @@ class NotificationService
         private readonly IntegrationCredentialService $integrations,
         private readonly SmtpMailService $smtpMail,
         private readonly MailTemplateService $templates,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<int, NotificationChannel>

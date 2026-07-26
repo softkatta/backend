@@ -13,6 +13,7 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\SubscriptionRenewalService;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -85,7 +86,7 @@ class SubscriptionRenewalPaymentGateTest extends TestCase
     /**
      * @return array{0: User, 1: Subscription}
      */
-    private function seedAutoRenewSubscription(\Carbon\CarbonInterface $endsAt, bool $autoRenew = true): array
+    private function seedAutoRenewSubscription(CarbonInterface $endsAt, bool $autoRenew = true): array
     {
         $user = User::factory()->create([
             'email' => 'client-'.Str::random(6).'@example.com',

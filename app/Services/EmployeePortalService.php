@@ -4,8 +4,6 @@ namespace App\Services;
 
 use App\Enums\AttendanceRecordStatus;
 use App\Enums\EmployeeDocumentCategory;
-use App\Enums\EmployeeExitStatus;
-use App\Enums\EmployeeStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
@@ -19,8 +17,7 @@ class EmployeePortalService
     public function __construct(
         private readonly EmployeeService $employees,
         private readonly HrStorageService $storage,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
