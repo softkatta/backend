@@ -114,6 +114,7 @@ class EnsureTenantAccess
             'api/v1/client/notifications',
             'api/v1/client/support',
             'api/v1/client/profile',
+            'api/v1/client/orders',
         ] as $prefix) {
             if ($path === $prefix || Str::startsWith($path, $prefix.'/')) {
                 return false;
