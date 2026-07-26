@@ -199,6 +199,8 @@ class LicenseService
 
         $expires = $subscription->trial_ends_at ?? null;
 
+        $subscriptionMeta = is_array($subscription->meta) ? $subscription->meta : [];
+
         $license = LicenseKey::create([
             'subscription_id' => $subscription->id,
             'product_id' => $subscription->product_id,
@@ -213,7 +215,7 @@ class LicenseService
             'activated_at' => now(),
             'expires_at' => $expires,
             'activation_count' => 0,
-            'meta' => array_merge(is_array($subscription->meta ?? []) ? $subscription->meta : [], ['temporary_trial' => true]),
+            'meta' => array_merge($subscriptionMeta, ['temporary_trial' => true]),
         ]);
 
         // Notify customer about temporary license (best-effort)
