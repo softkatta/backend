@@ -129,13 +129,17 @@ class LicenseService
     /**
      * Generate (or retrieve) a LicenseKey for the given subscription.
      *
-     * Requires SoftKatta Admin → Tenants frontend + backend domains for the customer workspace.
+     * Requires SoftKatta Admin â†’ Tenants frontend + backend domains for the customer workspace.
      *
      * @throws TenantDomainsRequiredException
      */
     public function generateForSubscription(Subscription $subscription): LicenseKey
     {
-        // Idempotent — return existing if already generated
+        if ($subscription->status === SubscriptionStatus::Trial) {
+            return $this->generateTemporaryForSubscription($subscription);
+        }
+
+        // Idempotent â€” return existing if already generated
         if ($existing = $subscription->licenseKey) {
             return $existing;
         }
@@ -146,7 +150,7 @@ class LicenseService
 
         if (! $tenant || ! $tenant->hasDeployDomains($product, $subscription)) {
             throw new TenantDomainsRequiredException(
-                'Assign SoftKatta Admin → Tenants domains for this subscription before generating a license or running project setup.'
+                'Assign SoftKatta Admin â†’ Tenants domains for this subscription before generating a license or running project setup.'
             );
         }
 
@@ -191,7 +195,15 @@ class LicenseService
     public function generateTemporaryForSubscription(Subscription $subscription): LicenseKey
     {
         if ($existing = $subscription->licenseKey) {
-            return $existing;
+            $meta = is_array($existing->meta) ? $existing->meta : [];
+            $existing->update([
+                'status' => LicenseStatus::Active,
+                'is_product_active' => true,
+                'expires_at' => $subscription->trial_ends_at,
+                'meta' => array_merge($meta, ['temporary_trial' => true]),
+            ]);
+
+            return $existing->fresh();
         }
 
         $subscription->loadMissing(['plan', 'product', 'tenant', 'user']);
@@ -264,7 +276,7 @@ class LicenseService
         $meta = is_array($license->meta) ? $license->meta : [];
         $isTemporary = ! empty($meta['temporary_trial']);
 
-        if ($isTemporary && count($domains) > 0) {
+        if ($isTemporary && count($domains) > 0 && $subscription?->status === SubscriptionStatus::Active) {
             // Compute new expiry similar to generateForSubscription
             $expires = null;
             $plan = $subscription?->plan;
@@ -489,7 +501,7 @@ class LicenseService
         $license->update(['allowed_domains' => []]);
         $this->recordHistory($license, 'domains_reset', [], $actorId);
 
-        // Domain transfer requires re-activation — revoke all install tokens.
+        // Domain transfer requires re-activation â€” revoke all install tokens.
         $this->revokeRemoteAccess($license, $actorId);
 
         return $license->fresh();
@@ -550,14 +562,14 @@ class LicenseService
             'force_logout_at' => now(),
         ]);
         $this->recordHistory($license, 'product_deactivated', [], $actorId);
-        // Keep install tokens — SoftKatta Activate / product activate restores access automatically via heartbeat.
+        // Keep install tokens â€” SoftKatta Activate / product activate restores access automatically via heartbeat.
 
         return $license->fresh();
     }
 
     /**
      * Kill install tokens (Force Logout / permanent revoke / domain reset).
-     * Do not use this for Suspend — suspend must be reversible without product-side re-activate.
+     * Do not use this for Suspend â€” suspend must be reversible without product-side re-activate.
      */
     public function revokeRemoteAccess(LicenseKey $license, ?int $actorId = null): void
     {
@@ -670,7 +682,7 @@ class LicenseService
         $license->update([
             'status' => LicenseStatus::Suspended,
             'suspended_at' => now(),
-            // Do not set force_logout_at — that maps to INVALID_INSTALL_TOKEN and breaks
+            // Do not set force_logout_at â€” that maps to INVALID_INSTALL_TOKEN and breaks
             // Admin Activate auto-recovery. Keep install tokens; verify returns SUSPENDED_LICENSE.
             'is_product_active' => false,
             'deactivated_at' => now(),
@@ -722,7 +734,7 @@ class LicenseService
         }
 
         // Revive sessions killed by older Suspend builds that revoked install tokens.
-        // Same token hashes stay valid — product recovers on next verify without Restore access.
+        // Same token hashes stay valid â€” product recovers on next verify without Restore access.
         LicenseInstallation::query()
             ->where('license_key_id', $license->id)
             ->whereNotNull('revoked_at')
@@ -777,7 +789,7 @@ class LicenseService
         $messageLines = [
             "Hi {$firstName},",
             '',
-            "Good news — your {$productName} setup is complete and ready to use.",
+            "Good news â€” your {$productName} setup is complete and ready to use.",
             '',
             'License key: '.$license->license_key,
         ];
@@ -795,7 +807,7 @@ class LicenseService
         $messageLines[] = '';
         $messageLines[] = 'If you need help signing in or activating the license, reply to this message or contact SoftKatta support.';
         $messageLines[] = '';
-        $messageLines[] = '— SoftKatta Team';
+        $messageLines[] = 'â€” SoftKatta Team';
 
         $message = implode("\n", $messageLines);
 
