@@ -11,6 +11,8 @@ use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use Illuminate\Support\Str;
+use App\Services\NotificationService;
+use App\Enums\NotificationChannel;
 
 class LicenseService
 {
@@ -81,6 +83,10 @@ class LicenseService
     {
         $license->loadMissing(['product', 'user', 'subscription.plan']);
         $data = $license->toArray();
+        // Ensure meta is present and expose trial end for temporary trial licenses
+        $meta = is_array($license->meta) ? $license->meta : [];
+        $data['meta'] = $meta;
+        $data['trial_ends_at'] = $license->subscription?->trial_ends_at?->toIso8601String();
         $data['installation_env'] = $this->buildInstallationEnv($license);
         $data['installation_env_text'] = $this->formatInstallationEnv($license);
 
@@ -193,7 +199,7 @@ class LicenseService
 
         $expires = $subscription->trial_ends_at ?? null;
 
-        return LicenseKey::create([
+        $license = LicenseKey::create([
             'subscription_id' => $subscription->id,
             'product_id' => $subscription->product_id,
             'user_id' => $subscription->user_id,
@@ -209,6 +215,26 @@ class LicenseService
             'activation_count' => 0,
             'meta' => array_merge(is_array($subscription->meta ?? []) ? $subscription->meta : [], ['temporary_trial' => true]),
         ]);
+
+        // Notify customer about temporary license (best-effort)
+        try {
+            $user = $subscription->user;
+            if ($user && filled($user->email)) {
+                $channels = NotificationService::allChannels();
+                app(NotificationService::class)->send(
+                    $user,
+                    'license.temporary_issued',
+                    'Trial license issued',
+                    "Your trial license ({$license->license_key}) is active until {$license->expires_at?->toDateString()}",
+                    $channels,
+                    ['license_id' => $license->id],
+                );
+            }
+        } catch (\Throwable $e) {
+            // swallow notification errors
+        }
+
+        return $license;
     }
 
     /**
@@ -255,6 +281,24 @@ class LicenseService
                 'meta' => $meta,
                 'expires_at' => $expires,
             ]);
+
+            // Notify customer that temporary license has been promoted to permanent
+            try {
+                $user = $license->user ?? $subscription->user;
+                if ($user && filled($user->email)) {
+                    $channels = NotificationService::allChannels();
+                    app(NotificationService::class)->send(
+                        $user,
+                        'license.promoted',
+                        'License activated',
+                        "Your license ({$license->license_key}) is now active for the domains: " . implode(', ', $domains),
+                        $channels,
+                        ['license_id' => $license->id, 'domains' => $domains],
+                    );
+                }
+            } catch (\Throwable $e) {
+                // ignore notification failures
+            }
         }
 
         return $license->fresh();
@@ -819,6 +863,24 @@ class LicenseService
         ]);
         $this->recordHistory($license, 'expired', [], $actorId);
         $this->revokeRemoteAccess($license, $actorId);
+
+        // Notify customer about expiry (best-effort)
+        try {
+            $user = $license->user;
+            if ($user && filled($user->email)) {
+                $channels = NotificationService::allChannels();
+                app(NotificationService::class)->send(
+                    $user,
+                    'license.expired',
+                    'License expired',
+                    "Your license ({$license->license_key}) has expired.",
+                    $channels,
+                    ['license_id' => $license->id],
+                );
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
 
         return $license->fresh();
     }
