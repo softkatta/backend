@@ -496,9 +496,10 @@ class PurchaseService
     protected function createSubscription(User $user, Product $product, Plan $plan, bool $requiresPayment): Subscription
     {
         $startsAt = now();
-        $trialEndsAt = $product->has_free_trial
-            ? $startsAt->copy()->addDays($product->trial_days)
-            : null;
+        
+        // Trial duration: use Plan.trial_days if available, else Product.trial_days
+        $trialDays = $plan->trial_days ?? ($product->has_free_trial ? $product->trial_days : 0);
+        $trialEndsAt = $trialDays > 0 ? $startsAt->copy()->addDays($trialDays) : null;
 
         $endsAt = match ($plan->billing_cycle->value) {
             'yearly' => $startsAt->copy()->addYear(),
@@ -506,12 +507,19 @@ class PurchaseService
             default => $startsAt->copy()->addMonth(),
         };
 
+        // Set status based on payment requirement and trial
+        $status = match (true) {
+            $requiresPayment => SubscriptionStatus::Pending,
+            $trialEndsAt !== null => SubscriptionStatus::Trial,
+            default => SubscriptionStatus::Active,
+        };
+
         return Subscription::create([
             'tenant_id' => $user->tenant_id,
             'user_id' => $user->id,
             'product_id' => $product->id,
             'plan_id' => $plan->id,
-            'status' => $requiresPayment ? SubscriptionStatus::Pending : SubscriptionStatus::Active,
+            'status' => $status,
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
             'trial_ends_at' => $trialEndsAt,
