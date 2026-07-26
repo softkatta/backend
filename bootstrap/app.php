@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureSiteNotInMaintenance;
+use App\Http\Middleware\ForceCorsOnErrors;
 use App\Http\Middleware\EnsureTenantAccess;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Console\Scheduling\Schedule;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(ForceCorsOnErrors::class);
         $middleware->prepend(HandleCors::class);
 
         $middleware->alias([
