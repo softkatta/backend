@@ -765,7 +765,7 @@ class LicenseService
      */
     public function notifyProductReady(LicenseKey $license, ?string $productUrl = null, ?int $actorId = null): array
     {
-        $license->loadMissing(['user', 'product']);
+        $license->loadMissing(['user', 'product', 'subscription']);
         $user = $license->user;
 
         if (! $user) {
@@ -788,15 +788,23 @@ class LicenseService
             $url = $this->normalizeProductUrl((string) $domains[0]);
         }
 
-        $portalUrl = rtrim((string) env('FRONTEND_URL', config('app.url')), '/').'/login';
+        $portalBaseUrl = rtrim((string) env('FRONTEND_URL', config('app.url')), '/');
+        $portalUrl = $portalBaseUrl.'/login';
+        $trialEndsAt = $license->subscription?->trial_ends_at ?? $license->expires_at;
 
         $messageLines = [
             "Hi {$firstName},",
             '',
-            "Good news â€” your {$productName} setup is complete and ready to use.",
+            "Good news - your {$productName} setup is complete and ready to use.",
             '',
+            'Login email: '.$user->email,
+            'Password: Use your existing SoftKatta password.',
             'License key: '.$license->license_key,
         ];
+
+        if ($trialEndsAt) {
+            $messageLines[] = 'Trial valid until: '.$trialEndsAt->toDateString();
+        }
 
         if ($url) {
             $messageLines[] = 'Product URL: '.$url;
@@ -817,7 +825,9 @@ class LicenseService
 
         $emailDetails = array_filter([
             'Product' => $productName,
+            'Login email' => $user->email,
             'License key' => $license->license_key,
+            'Trial valid until' => $trialEndsAt?->toDateString(),
             'Product URL' => $url,
             'Domain(s)' => $domains !== [] ? implode(', ', $domains) : null,
             'SoftKatta portal' => $portalUrl,
@@ -826,7 +836,7 @@ class LicenseService
         app(NotificationService::class)->send(
             $user,
             'product_ready',
-            "Your {$productName} is ready",
+            ($trialEndsAt ? "Your {$productName} trial access details" : "Your {$productName} is ready"),
             $message,
             NotificationService::allChannels(),
             [
