@@ -654,6 +654,10 @@ class LicenseService
 
         return [
             'max_branches' => (int) ($limits['max_branches'] ?? 1),
+            'max_customers' => (int) ($limits['max_customers'] ?? 1000),
+            'max_gst_invoices' => (int) ($limits['max_gst_invoices'] ?? 500),
+            'max_non_gst_invoices' => (int) ($limits['max_non_gst_invoices'] ?? 500),
+            'invoice_limit_period' => (string) ($limits['invoice_limit_period'] ?? 'monthly'),
             // Products enforce max_users; keep max_staff as an alias for older caches.
             'max_users' => $maxUsers,
             'max_staff' => $maxUsers,
