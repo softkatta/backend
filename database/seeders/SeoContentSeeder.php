@@ -266,6 +266,17 @@ TEXT;
             ],
         );
 
+        $retail = ProductCategory::firstOrCreate(
+            ['slug' => 'retail-erp'],
+            [
+                'name' => 'Retail ERP',
+                'description' => 'Billing, inventory, purchasing, and compliance software for retail businesses.',
+                'icon' => 'store',
+                'is_active' => true,
+                'sort_order' => 2,
+            ],
+        );
+
         $products = [
             [
                 'slug' => 'study-point-management-software',
@@ -314,6 +325,18 @@ TEXT;
                     'Parent Portal',
                     'Notifications',
                     'Reports',
+                ],
+            ],
+            [
+                'slug' => 'gold-store-management-software',
+                'name' => 'Gold Store Management Software',
+                'description' => 'Jewellery billing and store management with GST invoices, metal rates, inventory, purchases, old-gold exchange, karigar jobs, and business reports.',
+                'overview' => 'Complete jewellery store billing, stock, purchases, customer, and compliance management.',
+                'category_id' => $retail->id,
+                'sort_order' => 4,
+                'features' => [
+                    'GST Jewellery Billing', 'Gold & Silver Rate Management', 'Inventory & HUID Tracking',
+                    'Purchases & Suppliers', 'Old Gold Exchange', 'Karigar Job Management', 'Reports & Analytics',
                 ],
             ],
         ];

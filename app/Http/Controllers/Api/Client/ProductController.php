@@ -10,6 +10,9 @@ use App\Services\PurchaseService;
 use App\Services\SecurityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 
 class ProductController extends BaseApiController
 {
@@ -82,6 +85,50 @@ class ProductController extends BaseApiController
         return $this->success($product);
     }
 
+    public function download(Request $request, string $slug, string $platform): BinaryFileResponse|RedirectResponse|JsonResponse
+    {
+        $platform = strtolower($platform);
+        if (! in_array($platform, ['android', 'windows'], true)) {
+            return $this->error('Unsupported download platform.', 404);
+        }
+
+        $product = Product::query()->where('slug', $slug)->where('is_active', true)->firstOrFail();
+        $userId = $request->user()->id;
+        $hasSubscription = Subscription::withoutGlobalScope('tenant')
+            ->where('user_id', $userId)
+            ->where('product_id', $product->id)
+            ->whereIn('status', ['active', 'trial', 'expiring_soon'])
+            ->exists();
+        $hasCompletedOrder = Order::withoutGlobalScope('tenant')
+            ->where('user_id', $userId)
+            ->where('product_id', $product->id)
+            ->where('status', 'completed')
+            ->exists();
+
+        if (! $hasSubscription && ! $hasCompletedOrder) {
+            return $this->error('An active product entitlement is required to download this app.', 403);
+        }
+
+        $release = data_get($product->meta, "releases.{$platform}");
+        $path = is_array($release) ? trim((string) ($release['file_path'] ?? '')) : '';
+        if ($path === '') {
+            return $this->error('No download is currently available for this platform.', 404);
+        }
+
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return redirect()->away($path);
+        }
+
+        $path = ltrim($path, '/');
+        if (! Storage::disk('public')->exists($path)) {
+            return $this->error('The release file is unavailable. Contact Softkatta support.', 404);
+        }
+
+        $fallback = $platform === 'android' ? "{$product->slug}.apk" : "{$product->slug}-setup.exe";
+        $fileName = basename((string) ($release['file_name'] ?? $fallback));
+
+        return response()->download(Storage::disk('public')->path($path), $fileName);
+    }
     public function startTrial(Request $request, string $slug, PurchaseService $purchaseService): JsonResponse
     {
         $product = Product::where('slug', $slug)->firstOrFail();

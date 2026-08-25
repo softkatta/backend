@@ -13,6 +13,7 @@ class ProductPlanSeedService
             'study-point-management-software' => fn (Product $product) => $this->seedStudyPointPlans($product),
             'medical-store-management-software' => fn (Product $product) => $this->seedMedicalStorePlans($product),
             'nursery-school-management-software' => fn (Product $product) => $this->seedNurserySchoolPlans($product),
+            'gold-store-management-software' => fn (Product $product) => $this->seedGoldStorePlans($product),
         ];
 
         foreach ($map as $slug => $seedPlans) {
@@ -20,6 +21,19 @@ class ProductPlanSeedService
             if ($product) {
                 $seedPlans($product);
             }
+        }
+    }
+
+    private function seedGoldStorePlans(Product $product): void
+    {
+        $commonModules = ['billing', 'inventory', 'metal_rates', 'purchases', 'old_gold', 'karigar', 'reports'];
+        $plans = [
+            ['name' => 'Single Store', 'slug' => 'gold-store-single', 'description' => 'Jewellery billing and inventory for one store', 'price' => 2999, 'discount' => 0, 'billing_cycle' => 'monthly', 'is_popular' => true, 'sort_order' => 1, 'limits' => ['max_branches' => 1, 'max_users' => 5, 'max_devices' => 1, 'max_storage' => 10, 'enabled_modules' => $commonModules]],
+            ['name' => 'Multi Store', 'slug' => 'gold-store-multi', 'description' => 'Jewellery operations for growing multi-store businesses', 'price' => 6999, 'discount' => 0, 'billing_cycle' => 'monthly', 'is_popular' => false, 'sort_order' => 2, 'limits' => ['max_branches' => 5, 'max_users' => 25, 'max_devices' => 5, 'max_storage' => 50, 'enabled_modules' => $commonModules]],
+            ['name' => 'Single Store (Yearly)', 'slug' => 'gold-store-single-yearly', 'description' => 'Annual jewellery store licence with savings', 'price' => 35988, 'discount' => 20, 'billing_cycle' => 'yearly', 'is_popular' => false, 'sort_order' => 3, 'limits' => ['max_branches' => 1, 'max_users' => 5, 'max_devices' => 1, 'max_storage' => 10, 'enabled_modules' => $commonModules]],
+        ];
+        foreach ($plans as $plan) {
+            Plan::updateOrCreate(['product_id' => $product->id, 'slug' => $plan['slug']], array_merge($plan, ['gst_rate' => 18, 'currency' => 'INR', 'trial_days' => 14, 'is_active' => true]));
         }
     }
 

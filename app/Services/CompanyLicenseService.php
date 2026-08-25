@@ -11,6 +11,7 @@ use App\Models\ProductIntegration;
 use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class CompanyLicenseService
 {
@@ -446,6 +447,38 @@ class CompanyLicenseService
         return $this->verify($integration, $request);
     }
 
+    /** Authenticate only the Softkatta customer who owns this active licence. */
+    public function authenticateOwner(ProductIntegration $integration, Request $request): array
+    {
+        $resolved = $this->resolveInstallation($integration, $request, requireInstallToken: true);
+        if (! ($resolved['success'] ?? false)) {
+            return $this->error($resolved['error_code'], $resolved['message'], $resolved['http_status']);
+        }
+
+        /** @var LicenseKey $license */
+        $license = $resolved['license'];
+        $license->loadMissing('user');
+        $user = $license->user;
+        $login = strtolower(trim((string) $request->input('login', '')));
+        $password = (string) $request->input('password', '');
+
+        if (! $user || ! $user->is_active || strtolower((string) $user->email) !== $login || ! Hash::check($password, (string) $user->password)) {
+            return $this->error('INVALID_OWNER_CREDENTIALS', 'The supplied Softkatta credentials are invalid.', 401);
+        }
+
+        return [
+            'success' => true,
+            'http_status' => 200,
+            'data' => [
+                'customer_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'company_name' => $user->company_name,
+                'license_id' => $license->id,
+            ],
+        ];
+    }
     public function revokeInstallation(LicenseInstallation $installation, ?int $actorId = null): LicenseInstallation
     {
         $installation->update(['revoked_at' => now()]);

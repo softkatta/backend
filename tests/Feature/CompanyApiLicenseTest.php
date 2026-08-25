@@ -42,7 +42,7 @@ class CompanyApiLicenseTest extends TestCase
 
         Cache::flush();
 
-        $user = User::factory()->create(['email' => 'client@example.com']);
+        $user = User::factory()->create(['email' => 'client@example.com', 'password' => 'Owner@12345']);
         $tenant = Tenant::create([
             'name' => 'Test Tenant',
             'slug' => 'test-tenant',
@@ -363,6 +363,23 @@ class CompanyApiLicenseTest extends TestCase
         ])->assertOk();
     }
 
+    public function test_only_license_owner_can_login_through_company_api(): void
+    {
+        $activate = $this->signedJson('POST', '/api/v1/company/activate', ['license_key' => $this->license->license_key], [
+            'domain' => 'study.local', 'installation_id' => '', 'fingerprint' => hash('sha256', 'owner-login'),
+        ])->assertOk();
+        $meta = [
+            'domain' => 'study.local',
+            'installation_id' => $activate->json('data.installation_id'),
+            'fingerprint' => hash('sha256', 'owner-login'),
+            'install_token' => $activate->json('data.install_token'),
+        ];
+
+        $this->signedJson('POST', '/api/v1/company/owner/login', ['login' => 'client@example.com', 'password' => 'Owner@12345'], $meta)
+            ->assertOk()->assertJsonPath('data.email', 'client@example.com');
+        $this->signedJson('POST', '/api/v1/company/owner/login', ['login' => 'client@example.com', 'password' => 'wrong-password'], $meta)
+            ->assertUnauthorized()->assertJsonPath('error_code', 'INVALID_OWNER_CREDENTIALS');
+    }
     /**
      * @param  array<string, mixed>  $body
      * @param  array{domain?: string, installation_id?: string, fingerprint?: string, install_token?: string, nonce?: string}  $meta

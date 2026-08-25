@@ -66,6 +66,15 @@ class LicenseController extends Controller
         return $this->respond($result);
     }
 
+    public function authenticateOwner(Request $request): JsonResponse
+    {
+        $request->validate([
+            'login' => ['required', 'email', 'max:255'],
+            'password' => ['required', 'string', 'max:255'],
+        ]);
+
+        return $this->respond($this->companyLicenseService->authenticateOwner($this->integration($request), $request));
+    }
     public function heartbeat(Request $request): JsonResponse
     {
         $result = $this->companyLicenseService->heartbeat($this->integration($request), $request);

@@ -993,6 +993,9 @@ class LicenseService
             'medical-store', 'medical-store-management-software' => [
                 'billing', 'inventory', 'gst', 'purchase', 'reports',
             ],
+            'gold-store', 'gold-store-management-software', 'jewellery-store-management-software' => [
+                'billing', 'inventory', 'metal_rates', 'purchases', 'old_gold', 'karigar', 'reports',
+            ],
             'library-management-system' => [
                 'books', 'members', 'issue_return', 'fines', 'reports',
             ],

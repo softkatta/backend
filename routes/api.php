@@ -176,6 +176,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('products', [ClientProductController::class, 'index']);
         Route::get('products/{slug}', [ClientProductController::class, 'show']);
+        Route::get('products/{slug}/downloads/{platform}', [ClientProductController::class, 'download'])->where('platform', 'android|windows');
 
         Route::get('subscriptions', [ClientSubscriptionController::class, 'index']);
         Route::get('subscriptions/{subscription}', [ClientSubscriptionController::class, 'show']);
@@ -545,6 +546,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('limits', [CompanyLicenseController::class, 'limits']);
             Route::get('addons', [CompanyLicenseController::class, 'addons']);
             Route::post('heartbeat', [CompanyLicenseController::class, 'heartbeat']);
+            Route::post('owner/login', [CompanyLicenseController::class, 'authenticateOwner']);
         });
     });
 
