@@ -30,6 +30,7 @@ class StorePlanRequest extends FormRequest
             'limits.max_staff' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'limits.max_students' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'limits.max_branches' => ['nullable', 'integer', 'min:0', 'max:1000'],
+            'limits.max_devices' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'limits.max_customers' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'limits.max_gst_invoices' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'limits.max_non_gst_invoices' => ['nullable', 'integer', 'min:0', 'max:10000000'],
