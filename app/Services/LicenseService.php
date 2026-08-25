@@ -776,6 +776,12 @@ class LicenseService
             throw new \InvalidArgumentException('Customer email is required to send the product-ready notice.');
         }
 
+        $temporaryPassword = Str::password(14, true, true, true, false);
+        $user->update([
+            'password' => $temporaryPassword,
+            'initial_login_password' => $temporaryPassword,
+        ]);
+
         $productName = $license->product?->name ?? 'your SoftKatta product';
         $firstName = explode(' ', trim((string) $user->name))[0] ?: 'there';
         $domains = collect($license->allowed_domains ?? [])
@@ -798,7 +804,7 @@ class LicenseService
             "Good news - your {$productName} setup is complete and ready to use.",
             '',
             'Login email: '.$user->email,
-            'Password: Use your existing SoftKatta password.',
+            'Temporary password: '.$temporaryPassword,
             'License key: '.$license->license_key,
         ];
 
@@ -819,13 +825,14 @@ class LicenseService
         $messageLines[] = '';
         $messageLines[] = 'If you need help signing in or activating the license, reply to this message or contact SoftKatta support.';
         $messageLines[] = '';
-        $messageLines[] = 'â€” SoftKatta Team';
+        $messageLines[] = '- SoftKatta Team';
 
         $message = implode("\n", $messageLines);
 
         $emailDetails = array_filter([
             'Product' => $productName,
             'Login email' => $user->email,
+            'Temporary password' => $temporaryPassword,
             'License key' => $license->license_key,
             'Trial valid until' => $trialEndsAt?->toDateString(),
             'Product URL' => $url,
@@ -855,6 +862,7 @@ class LicenseService
         return [
             'customer_name' => (string) $user->name,
             'customer_email' => $user->email,
+            'temporary_password' => $temporaryPassword,
             'customer_phone' => $user->phone,
             'product_name' => $productName,
             'product_url' => $url,
